@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:workout_tracker/data/exercise_data.dart';
 import 'exercise_detail_screen.dart';
+import '../core/premium_ui.dart';
 
 class ExerciseLibraryScreen extends StatefulWidget {
   const ExerciseLibraryScreen({super.key});
@@ -46,26 +47,15 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   List<Map<String, String>> getFilteredExercises() {
     var exercises = List<Map<String, String>>.from(ExerciseData.allExercises);
     if (selectedCategory != "All")
-      exercises =
-          exercises.where((e) => e["muscle"] == selectedCategory).toList();
+      exercises = exercises.where((e) => e["muscle"] == selectedCategory).toList();
     if (selectedDifficulty != "All")
-      exercises =
-          exercises
-              .where((e) => e["difficulty"] == selectedDifficulty)
-              .toList();
+      exercises = exercises.where((e) => e["difficulty"] == selectedDifficulty).toList();
     if (searchQuery.isNotEmpty) {
-      exercises =
-          exercises
-              .where(
-                (e) =>
-                    e["name"]!.toLowerCase().contains(
-                      searchQuery.toLowerCase(),
-                    ) ||
-                    e["muscle"]!.toLowerCase().contains(
-                      searchQuery.toLowerCase(),
-                    ),
-              )
-              .toList();
+      exercises = exercises
+          .where((e) =>
+              e["name"]!.toLowerCase().contains(searchQuery.toLowerCase()) ||
+              e["muscle"]!.toLowerCase().contains(searchQuery.toLowerCase()))
+          .toList();
     }
     exercises.sort((a, b) => a["name"]!.compareTo(b["name"]!));
     return exercises;
@@ -96,227 +86,170 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   Widget build(BuildContext context) {
     final filteredExercises = getFilteredExercises();
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0E21),
-      body: SafeArea(
+    return PremiumScaffold(
+      aurora: true,
+      body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFF6C5CE7),
-                    const Color(0xFF6C5CE7).withOpacity(0.7),
-                  ],
-                ),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(40),
-                  bottomRight: Radius.circular(40),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Exercise",
-                              style: TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            Text(
-                              "Library",
-                              style: TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Text(
-                                "${filteredExercises.length}",
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              "of ${ExerciseData.allExercises.length} total",
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.search,
-                            color: Colors.white.withOpacity(0.7),
-                            size: 24,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: "Search exercises...",
-                                hintStyle: TextStyle(
-                                  color: Colors.white.withOpacity(0.5),
-                                  fontSize: 16,
-                                ),
-                                border: InputBorder.none,
-                              ),
-                              onChanged:
-                                  (value) =>
-                                      setState(() => searchQuery = value),
-                            ),
-                          ),
-                          if (searchQuery.isNotEmpty)
-                            IconButton(
-                              icon: Icon(
-                                Icons.clear,
-                                color: Colors.white.withOpacity(0.7),
-                              ),
-                              onPressed: _clearSearch,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        "Categories",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                      Text(
+                        "EXERCISE LIBRARY",
+                        style: PUI.text(
+                          size: 11,
+                          weight: FontWeight.w600,
+                          letterSpacing: 2.2,
+                          color: Colors.white.withOpacity(0.4),
                         ),
                       ),
-                      if (hasActiveFilters)
-                        TextButton(
-                          onPressed: _clearAllFilters,
-                          child: const Text(
-                            "Clear Filters",
-                            style: TextStyle(
-                              color: Color(0xFFE91E63),
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
+                      const SizedBox(height: 6),
+                      GradientText(
+                        "Find Your\nNext Move",
+                        size: 28,
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 44,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: categories.length,
-                      itemBuilder:
-                          (context, index) =>
-                              _buildCategoryChip(categories[index]),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 36,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: difficulties.length,
-                      itemBuilder:
-                          (context, index) =>
-                              _buildDifficultyChip(difficulties[index]),
+                  _buildStatsBadge(filteredExercises.length),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: _buildSearchBar(),
+            ),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: SectionTitle(
+                "Filters",
+                actionLabel: hasActiveFilters ? "Clear All" : null,
+                onAction: hasActiveFilters ? _clearAllFilters : null,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 48,
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                scrollDirection: Axis.horizontal,
+                itemCount: categories.length,
+                itemBuilder: (context, index) => _buildCategoryChip(categories[index]),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 40,
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                scrollDirection: Axis.horizontal,
+                itemCount: difficulties.length,
+                itemBuilder: (context, index) => _buildDifficultyChip(difficulties[index]),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "${filteredExercises.length} exercise${filteredExercises.length == 1 ? '' : 's'}",
+                    style: PUI.text(
+                      size: 14,
+                      weight: FontWeight.w600,
+                      color: Colors.white.withOpacity(0.5),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Text(
-                "${filteredExercises.length} exercise${filteredExercises.length == 1 ? '' : 's'} found",
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.4),
-                  fontSize: 13,
-                ),
+            if (filteredExercises.isEmpty)
+              _buildEmptyState()
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: filteredExercises.length,
+                itemBuilder: (context, index) {
+                  final exercise = filteredExercises[index];
+                  return _buildExerciseCard(
+                    context,
+                    exercise["name"]!,
+                    exercise["muscle"]!,
+                    exercise["difficulty"]!,
+                  );
+                },
               ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child:
-                  filteredExercises.isEmpty
-                      ? _buildEmptyState()
-                      : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        itemCount: filteredExercises.length,
-                        itemBuilder: (context, index) {
-                          final exercise = filteredExercises[index];
-                          return _buildExerciseCard(
-                            context,
-                            exercise["name"]!,
-                            exercise["muscle"]!,
-                            exercise["difficulty"]!,
-                          );
-                        },
-                      ),
-            ),
+            const SizedBox(height: 32),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatsBadge(int count) {
+    return Glass(
+      radius: 20,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            "$count",
+            style: PUI.text(
+              size: 24,
+              weight: FontWeight.w800,
+              color: PUI.primary,
+            ),
+          ),
+          Text(
+            "of ${ExerciseData.allExercises.length}",
+            style: PUI.text(
+              size: 10,
+              color: Colors.white.withOpacity(0.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Glass(
+      radius: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          Icon(Icons.search, color: Colors.white.withOpacity(0.5), size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: PUI.text(size: 15, color: Colors.white),
+              decoration: InputDecoration(
+                hintText: "Search exercises...",
+                hintStyle: PUI.text(size: 15, color: Colors.white.withOpacity(0.4)),
+                border: InputBorder.none,
+              ),
+              onChanged: (value) => setState(() => searchQuery = value),
+            ),
+          ),
+          if (searchQuery.isNotEmpty)
+            Pressable(
+              onTap: _clearSearch,
+              child: Icon(Icons.close, color: Colors.white.withOpacity(0.6), size: 20),
+            ),
+        ],
       ),
     );
   }
@@ -324,32 +257,26 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   Widget _buildCategoryChip(String label) {
     final isSelected = selectedCategory == label;
     final count = ExerciseData.getCountForCategory(label);
-    return Container(
-      margin: const EdgeInsets.only(right: 10),
-      child: InkWell(
-        onTap:
-            () => setState(() {
-              selectedCategory = label;
-              searchQuery = "";
-              _searchController.clear();
-            }),
+    final muscleColor = label == "All" ? PUI.primary : ExerciseData.getMuscleColor(label);
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Pressable(
+        onTap: () => setState(() {
+          selectedCategory = label;
+          searchQuery = "";
+          _searchController.clear();
+        }),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            gradient:
-                isSelected
-                    ? const LinearGradient(
-                      colors: [Color(0xFF6C5CE7), Color(0xFF9B59B6)],
-                    )
-                    : null,
-            color: isSelected ? null : const Color(0xFF1E1E3F),
+            gradient: isSelected
+                ? LinearGradient(colors: [muscleColor, muscleColor.withOpacity(0.6)])
+                : null,
+            color: isSelected ? null : Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color:
-                  isSelected
-                      ? Colors.transparent
-                      : const Color(0xFF6C5CE7).withOpacity(0.3),
-              width: 1,
+              color: isSelected ? muscleColor.withOpacity(0.5) : Colors.white.withOpacity(0.08),
             ),
           ),
           child: Row(
@@ -357,35 +284,31 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
             children: [
               Icon(
                 ExerciseData.getMuscleIcon(label == "All" ? null : label),
-                color: isSelected ? Colors.white : const Color(0xFF6C5CE7),
+                color: isSelected ? Colors.white : muscleColor,
                 size: 16,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Text(
                 label,
-                style: TextStyle(
-                  color:
-                      isSelected ? Colors.white : Colors.white.withOpacity(0.7),
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  fontSize: 13,
+                style: PUI.text(
+                  size: 13,
+                  weight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? Colors.white : Colors.white.withOpacity(0.6),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color:
-                      isSelected
-                          ? Colors.white.withOpacity(0.25)
-                          : const Color(0xFF6C5CE7).withOpacity(0.2),
+                  color: isSelected ? Colors.white.withOpacity(0.2) : muscleColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   '$count',
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : const Color(0xFF6C5CE7),
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+                  style: PUI.text(
+                    size: 10,
+                    weight: FontWeight.w700,
+                    color: isSelected ? Colors.white : muscleColor,
                   ),
                 ),
               ),
@@ -398,31 +321,28 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
 
   Widget _buildDifficultyChip(String difficulty) {
     final isSelected = selectedDifficulty == difficulty;
-    final color =
-        difficulty == "All"
-            ? const Color(0xFF6C5CE7)
-            : ExerciseData.getDifficultyColor(difficulty);
-    return Container(
-      margin: const EdgeInsets.only(right: 10),
-      child: InkWell(
+    final color = difficulty == "All" ? PUI.primary : ExerciseData.getDifficultyColor(difficulty);
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Pressable(
         onTap: () => setState(() => selectedDifficulty = difficulty),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color:
-                isSelected ? color.withOpacity(0.2) : const Color(0xFF1E1E3F),
+            color: isSelected ? color.withOpacity(0.2) : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isSelected ? color : color.withOpacity(0.3),
+              color: isSelected ? color : Colors.white.withOpacity(0.08),
               width: isSelected ? 2 : 1,
             ),
           ),
           child: Text(
             difficulty,
-            style: TextStyle(
-              color: isSelected ? color : Colors.white.withOpacity(0.5),
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-              fontSize: 12,
+            style: PUI.text(
+              size: 12,
+              weight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? color : Colors.white.withOpacity(0.4),
             ),
           ),
         ),
@@ -431,49 +351,70 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.search_off,
-            size: 80,
-            color: Colors.white.withOpacity(0.2),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            "No exercises found",
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 60),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: PUI.primary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.search_off,
+                size: 64,
+                color: PUI.primary.withOpacity(0.6),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            searchQuery.isNotEmpty
-                ? 'No results for "$searchQuery"'
-                : selectedCategory != "All" && selectedDifficulty != "All"
-                ? 'No $selectedDifficulty $selectedCategory exercises'
-                : selectedCategory != "All"
-                ? 'No exercises in $selectedCategory'
-                : 'No $selectedDifficulty exercises',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.3),
-              fontSize: 14,
+            const SizedBox(height: 24),
+            Text(
+              "No exercises found",
+              style: PUI.text(size: 20, weight: FontWeight.w700),
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 20),
-          TextButton.icon(
-            onPressed: _clearAllFilters,
-            icon: const Icon(Icons.refresh, color: Color(0xFF6C5CE7)),
-            label: const Text(
-              'Clear all filters',
-              style: TextStyle(color: Color(0xFF6C5CE7)),
+            const SizedBox(height: 8),
+            Text(
+              searchQuery.isNotEmpty
+                  ? 'No results for "$searchQuery"'
+                  : selectedCategory != "All" && selectedDifficulty != "All"
+                      ? 'No $selectedDifficulty $selectedCategory exercises'
+                      : selectedCategory != "All"
+                          ? 'No exercises in $selectedCategory'
+                          : 'No $selectedDifficulty exercises',
+              style: PUI.text(size: 14, color: Colors.white.withOpacity(0.5)),
+              textAlign: TextAlign.center,
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            Pressable(
+              onTap: _clearAllFilters,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                decoration: BoxDecoration(
+                  color: PUI.primary.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: PUI.primary.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.refresh, color: PUI.primary, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Clear all filters',
+                      style: PUI.text(
+                        size: 14,
+                        weight: FontWeight.w600,
+                        color: PUI.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -489,124 +430,89 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
     final difficultyColor = ExerciseData.getDifficultyColor(difficulty);
     final difficultyIcon = ExerciseData.getDifficultyIcon(difficulty);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF1E1E3F),
-            const Color(0xFF1E1E3F).withOpacity(0.7),
-          ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Pressable(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ExerciseDetailScreen(
+              name: name,
+              muscle: muscle,
+              difficulty: difficulty,
+            ),
+          ),
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: muscleColor.withOpacity(0.3), width: 1),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap:
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder:
-                      (context) => ExerciseDetailScreen(
-                        name: name,
-                        muscle: muscle,
-                        difficulty: difficulty,
-                      ),
-                ),
-              ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        muscleColor.withOpacity(0.3),
-                        muscleColor.withOpacity(0.1),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(muscleIcon, color: muscleColor, size: 28),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: muscleColor.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              muscle,
-                              style: TextStyle(
-                                color: muscleColor,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Icon(
-                            difficultyIcon,
-                            color: difficultyColor,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            difficulty,
-                            style: TextStyle(
-                              color: difficultyColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
+        child: Glass(
+          radius: 20,
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      muscleColor.withOpacity(0.35),
+                      muscleColor.withOpacity(0.1),
                     ],
                   ),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: muscleColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.arrow_forward_ios,
-                    color: muscleColor,
-                    size: 16,
-                  ),
+                child: Icon(muscleIcon, color: muscleColor, size: 26),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: PUI.text(size: 16, weight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: muscleColor.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            muscle,
+                            style: PUI.text(
+                              size: 11,
+                              weight: FontWeight.w700,
+                              color: muscleColor,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(difficultyIcon, color: difficultyColor, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          difficulty,
+                          style: PUI.text(
+                            size: 11,
+                            weight: FontWeight.w600,
+                            color: difficultyColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.white.withOpacity(0.3),
+                size: 16,
+              ),
+            ],
           ),
         ),
       ),

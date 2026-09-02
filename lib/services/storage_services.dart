@@ -195,6 +195,17 @@ class ProgramStorage {
     }
   }
 
+  static Future<bool> deleteProgram(String id) async {
+    try {
+      final key = _box.keys.firstWhere((k) => _box.get(k)['id'] == id);
+      await _box.delete(key);
+      return true;
+    } catch (e) {
+      debugPrint('ProgramStorage.deleteProgram error: $e');
+      return false;
+    }
+  }
+
   static Future<bool> clearAll() async {
     try {
       await _box.clear();
