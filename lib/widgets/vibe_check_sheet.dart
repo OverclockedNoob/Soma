@@ -1,5 +1,7 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../screens/active_workout_screen.dart';
+import '../core/premium_ui.dart';
 
 class VibeCheckSheet extends StatefulWidget {
   final List<Map<String, dynamic>> originalExercises;
@@ -26,24 +28,21 @@ class _VibeCheckSheetState extends State<VibeCheckSheet> {
     return "Normal Pace 🙂";
   }
 
+  // 🎨 MAPPED TO PUI PALETTE
   Color get _statusColor {
-    if (_overallStatus.contains("Easy")) return const Color(0xFFFF6B9D); // Pink
-    if (_overallStatus.contains("Crush"))
-      return const Color(0xFF4CAF50); // Green
-    return const Color(0xFFFFB800); // Yellow
+    if (_overallStatus.contains("Easy")) return PUI.pink;
+    if (_overallStatus.contains("Crush")) return PUI.mint;
+    return PUI.amber;
   }
 
   void _startWorkout() {
     // Deep copy exercises so we don't mutate the actual database objects
     final adjustedExercises =
-        widget.originalExercises
-            .map((ex) => Map<String, dynamic>.from(ex))
-            .toList();
+        widget.originalExercises.map((ex) => Map<String, dynamic>.from(ex)).toList();
 
     double multiplier = 1.0;
     if (_overallStatus.contains("Easy")) multiplier = 0.8; // Reduce reps by 20%
-    if (_overallStatus.contains("Crush"))
-      multiplier = 1.1; // Boost reps by 10% for PR attempts
+    if (_overallStatus.contains("Crush")) multiplier = 1.1; // Boost reps by 10%
 
     for (var ex in adjustedExercises) {
       int target = (ex['targetReps'] ?? 10) as int;
@@ -55,111 +54,111 @@ class _VibeCheckSheetState extends State<VibeCheckSheet> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder:
-            (context) =>
-                ActiveWorkoutScreen(customExercises: adjustedExercises),
+        builder: (context) => ActiveWorkoutScreen(customExercises: adjustedExercises),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E1E3F),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(2),
-            ),
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: PUI.surface.withOpacity(0.9),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1), width: 1)),
           ),
-          const SizedBox(height: 20),
-          const Text(
-            "The Vibe Check",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "How is your body feeling for ${widget.workoutName}?",
-            style: TextStyle(color: Colors.white.withOpacity(0.7)),
-          ),
-          const SizedBox(height: 24),
-
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: _statusColor.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _statusColor),
-            ),
-            child: Text(
-              _overallStatus,
-              style: TextStyle(
-                color: _statusColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          _buildSlider(
-            "Sleep Quality 😴",
-            _sleep,
-            const Color(0xFF6C5CE7),
-            (val) => setState(() => _sleep = val),
-          ),
-          const SizedBox(height: 16),
-          _buildSlider(
-            "Stress Level 🤯",
-            _stress,
-            const Color(0xFFFFB800),
-            (val) => setState(() => _stress = val),
-          ),
-          const SizedBox(height: 16),
-          _buildSlider(
-            "Muscle Soreness 🤕",
-            _soreness,
-            const Color(0xFFFF6B9D),
-            (val) => setState(() => _soreness = val),
-          ),
-          const SizedBox(height: 32),
-
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: _startWorkout,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _statusColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── DRAG HANDLE ────────────────────────────────
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              child: const Text(
-                "Start Workout",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              const SizedBox(height: 24),
+
+              // ── HEADER ─────────────────────────────────────
+              GradientText("The Vibe Check", size: 24, weight: FontWeight.w900),
+              const SizedBox(height: 8),
+              Text(
+                "How is your body feeling for ${widget.workoutName}?",
+                style: PUI.text(size: 14, color: Colors.white.withOpacity(0.6)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+
+              // ── STATUS PILL ────────────────────────────────
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _statusColor.withOpacity(0.5)),
+                  boxShadow: [
+                    BoxShadow(color: _statusColor.withOpacity(0.2), blurRadius: 12)
+                  ],
+                ),
+                child: Text(
+                  _overallStatus,
+                  style: PUI.text(color: _statusColor, weight: FontWeight.w800, size: 16),
                 ),
               ),
-            ),
+              const SizedBox(height: 32),
+
+              // ── SLIDERS ────────────────────────────────────
+              _buildSlider("Sleep Quality 😴", _sleep, PUI.primary, (val) => setState(() => _sleep = val)),
+              const SizedBox(height: 24),
+              _buildSlider("Stress Level 🤯", _stress, PUI.amber, (val) => setState(() => _stress = val)),
+              const SizedBox(height: 24),
+              _buildSlider("Muscle Soreness 🤕", _soreness, PUI.pink, (val) => setState(() => _soreness = val)),
+              const SizedBox(height: 36),
+
+              // ── START BUTTON ───────────────────────────────
+              Pressable(
+                onTap: _startWorkout,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: double.infinity,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [_statusColor, _statusColor.withOpacity(0.7)],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _statusColor.withOpacity(0.4),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
+                        const SizedBox(width: 8),
+                        Text("Start Workout", style: PUI.text(size: 18, weight: FontWeight.w800)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 10),
+            ],
           ),
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 10),
-        ],
+        ),
       ),
     );
   }
@@ -176,30 +175,30 @@ class _VibeCheckSheetState extends State<VibeCheckSheet> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+            Text(title, style: PUI.text(size: 15, weight: FontWeight.w700)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
               ),
-            ),
-            Text(
-              "${value.toInt()}/10",
-              style: TextStyle(
-                color: color,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+              child: Text(
+                "${value.toInt()}/10",
+                style: PUI.text(color: color, size: 14, weight: FontWeight.w800),
               ),
             ),
           ],
         ),
+        const SizedBox(height: 4),
         SliderTheme(
-          data: SliderTheme.of(context).copyWith(
+          data: SliderThemeData(
+            trackHeight: 8,
             activeTrackColor: color,
-            inactiveTrackColor: color.withOpacity(0.2),
+            inactiveTrackColor: Colors.white.withOpacity(0.05),
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
             thumbColor: color,
-            overlayColor: color.withOpacity(0.1),
+            overlayColor: color.withOpacity(0.15),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
           ),
           child: Slider(
             value: value,
