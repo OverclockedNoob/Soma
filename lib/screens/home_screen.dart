@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,16 +9,8 @@ import 'stats_screen.dart';
 import 'library_screen.dart';
 import 'split_builder_screen.dart';
 import 'calendar_screen.dart';
+import '../core/premium_ui.dart';
 import '../widgets/vibe_check_sheet.dart';
-
-// ── SUPER PREMIUM PALETTE ─────────────────────────────────────
-const Color _kBg = Color(0xFF05060A);
-const Color _kPrimary = Color(0xFF8B7CFF);
-const Color _kPrimaryDeep = Color(0xFF5A3CC4);
-const Color _kMint = Color(0xFF3DDCB8);
-const Color _kAmber = Color(0xFFFFC24A);
-const Color _kFlame = Color(0xFFFF6B4A);
-const Color _kPink = Color(0xFFFF6B9D);
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -132,8 +123,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return "Good Night";
   }
 
+  // 🛡️ UPGRADED STREAK LOGIC: Respects Frozen Dates and Rest Days!
   int _calculateStreak(List<Map<String, dynamic>> workouts) {
     if (workouts.isEmpty) return 0;
+    
+    // Build set of workout dates
     final workoutDates = <DateTime>{};
     for (var w in workouts) {
       try {
@@ -141,18 +135,48 @@ class _HomeScreenState extends State<HomeScreen> {
         workoutDates.add(DateTime(d.year, d.month, d.day));
       } catch (_) {}
     }
-    final sorted = workoutDates.toList()..sort((a, b) => b.compareTo(a));
+    
+    // Build set of frozen dates
+    final frozenDates = <DateTime>{};
+    for (final dateStr in SettingsStorage.getFrozenDates()) {
+      try {
+        final d = DateTime.parse(dateStr);
+        frozenDates.add(DateTime(d.year, d.month, d.day));
+      } catch (_) {}
+    }
+    
+    // Build set of rest days from program schedule (look back 30 days)
+    final restDays = <DateTime>{};
+    if (_activeProgram != null && _activeProgram!['schedule'] != null) {
+      final schedule = Map<String, dynamic>.from(_activeProgram!['schedule'] as Map);
+      final today = DateTime.now();
+      for (int i = 0; i < 30; i++) {
+        final d = today.subtract(Duration(days: i));
+        final dayName = _fullDays[d.weekday - 1];
+        if (schedule[dayName] == null) {
+          restDays.add(DateTime(d.year, d.month, d.day));
+        }
+      }
+    }
+    
+    // Start streak calculation
     final today = DateTime.now();
     DateTime check = DateTime(today.year, today.month, today.day);
     int streak = 0;
-    for (final day in sorted) {
-      if (day == check) {
-        streak++;
-        check = check.subtract(const Duration(days: 1));
-      } else if (day.isBefore(check)) {
-        break;
-      }
+    
+    // Grace period: if today hasn't been worked yet and isn't frozen/rest, go back one day
+    if (!workoutDates.contains(check) && !frozenDates.contains(check) && !restDays.contains(check)) {
+      check = check.subtract(const Duration(days: 1));
     }
+    
+    // Walk backwards, counting worked days, skipping frozen and rest days
+    while (workoutDates.contains(check) || frozenDates.contains(check) || restDays.contains(check)) {
+      if (workoutDates.contains(check)) {
+        streak++;
+      }
+      check = check.subtract(const Duration(days: 1));
+    }
+    
     return streak;
   }
 
@@ -183,10 +207,6 @@ class _HomeScreenState extends State<HomeScreen> {
   String _formatCalories(int calories) =>
       calories >= 1000 ? "${(calories / 1000).toStringAsFixed(1)}k" : "$calories";
 
-  // ════════════════════════════════════════════════════════════
-  //  SUPER PREMIUM UI
-  // ════════════════════════════════════════════════════════════
-
   Widget _buildAnimatedSection({required Widget child}) {
     return AnimatedOpacity(
       opacity: _isLoaded ? 1.0 : 0.0,
@@ -201,112 +221,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _glass({required Widget child, double radius = 24}) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(radius),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withOpacity(0.08),
-                Colors.white.withOpacity(0.02),
-              ],
-            ),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
-          ),
-          child: child,
-        ),
-      ),
-    );
-  }
-
-  Widget _gradientText(
-    String text, {
-    double size = 32,
-    FontWeight weight = FontWeight.w800,
-    List<Color>? colors,
-  }) {
-    return ShaderMask(
-      shaderCallback: (rect) => LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: colors ?? [Colors.white, Colors.white.withOpacity(0.55)],
-      ).createShader(rect),
-      child: Text(
-        text,
-        style: GoogleFonts.outfit(
-          fontSize: size,
-          fontWeight: weight,
-          color: Colors.white,
-          letterSpacing: -0.5,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAurora() {
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: Stack(
-          children: [
-            Positioned(
-              top: -260,
-              left: -180,
-              child: Container(
-                width: 650,
-                height: 650,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    radius: 1.0,
-                    colors: [
-                      _kPrimary.withOpacity(0.14),
-                      _kPrimary.withOpacity(0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: -160,
-              right: -220,
-              child: Container(
-                width: 600,
-                height: 600,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    radius: 1.0,
-                    colors: [
-                      _kMint.withOpacity(0.08),
-                      _kMint.withOpacity(0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: PUI.bg,
       body: Stack(
         children: [
-          _buildAurora(),
+          const AuroraBackground(),
           SafeArea(
             child: RefreshIndicator(
-              color: _kPrimary,
-              backgroundColor: _kBg,
+              color: PUI.primary,
+              backgroundColor: PUI.bg,
               onRefresh: () async => _loadData(),
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -353,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 6),
-              _gradientText(_userName, size: 32),
+              GradientText(_userName, size: 32),
             ],
           ),
           SizedBox(
@@ -384,7 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildMissionCard() {
     final rest = _isTodayRestDay;
-    return _Pressable(
+    return Pressable(
       onTap: () {
         if (rest) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -394,7 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _showVibeCheck(_todaysExercises, _todaysWorkoutName ?? "Workout");
         }
       },
-      child: _glass(
+      child: Glass(
         radius: 28,
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -410,7 +335,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 2.2,
-                        color: _kMint.withOpacity(0.9),
+                        color: PUI.mint.withOpacity(0.9),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -439,12 +364,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: BoxDecoration(
                   gradient: rest
                       ? null
-                      : const LinearGradient(colors: [_kPrimary, _kPrimaryDeep]),
+                      : const LinearGradient(colors: [PUI.primary, PUI.primaryDeep]),
                   color: rest ? Colors.white.withOpacity(0.08) : null,
                   shape: BoxShape.circle,
                   boxShadow: rest
                       ? []
-                      : [BoxShadow(color: _kPrimary.withOpacity(0.5), blurRadius: 16)],
+                      : [BoxShadow(color: PUI.primary.withOpacity(0.5), blurRadius: 16)],
                 ),
                 child: Icon(
                   rest ? Icons.self_improvement : Icons.play_arrow,
@@ -464,14 +389,14 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Row(
         children: [
-          _buildStatTile("WORKOUTS", "$totalWorkouts", Icons.fitness_center, _kPrimary),
+          _buildStatTile("WORKOUTS", "$totalWorkouts", Icons.fitness_center, PUI.primary),
           const SizedBox(width: 10),
-          _buildStatTile("STREAK", "$currentStreak", Icons.local_fire_department, _kFlame,
-              valueGradient: [_kFlame, _kAmber]),
+          _buildStatTile("STREAK", "$currentStreak", Icons.local_fire_department, PUI.flame,
+              valueGradient: [PUI.flame, PUI.amber]),
           const SizedBox(width: 10),
-          _buildStatTile("KCAL", _formatCalories(totalCalories), Icons.bolt, _kAmber),
+          _buildStatTile("KCAL", _formatCalories(totalCalories), Icons.bolt, PUI.amber),
           const SizedBox(width: 10),
-          _buildStatTile("COINS", "$recoveryCoins", Icons.shield, _kMint,
+          _buildStatTile("COINS", "$recoveryCoins", Icons.shield, PUI.mint,
               onTap: _showRecoveryBankPopup),
         ],
       ),
@@ -486,7 +411,7 @@ class _HomeScreenState extends State<HomeScreen> {
     List<Color>? valueGradient,
     VoidCallback? onTap,
   }) {
-    final content = _glass(
+    final content = Glass(
       radius: 20,
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -501,7 +426,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 10),
             valueGradient != null
-                ? _gradientText(value, size: 20, colors: valueGradient)
+                ? GradientText(value, size: 20, colors: valueGradient)
                 : Text(
                     value,
                     style: GoogleFonts.outfit(
@@ -530,7 +455,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     return Expanded(
-      child: onTap == null ? content : _Pressable(onTap: onTap, child: content),
+      child: onTap == null ? content : Pressable(onTap: onTap, child: content),
     );
   }
 
@@ -539,7 +464,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final todayIndex = DateTime.now().weekday - 1;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: _glass(
+      child: Glass(
         radius: 24,
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -558,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.white.withOpacity(0.6),
                     ),
                   ),
-                  _Pressable(
+                  Pressable(
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const StatisticsScreen()),
@@ -569,7 +494,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.2,
-                        color: _kMint,
+                        color: PUI.mint,
                       ),
                     ),
                   ),
@@ -595,13 +520,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ? const LinearGradient(
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
-                                    colors: [_kPrimary, _kPrimaryDeep],
+                                    colors: [PUI.primary, PUI.primaryDeep],
                                   )
                                 : null,
                             color: active ? null : Colors.white.withOpacity(0.06),
                             borderRadius: BorderRadius.circular(10),
                             boxShadow: (active && isToday)
-                                ? [BoxShadow(color: _kPrimary.withOpacity(0.55), blurRadius: 16)]
+                                ? [BoxShadow(color: PUI.primary.withOpacity(0.55), blurRadius: 16)]
                                 : [],
                           ),
                         ),
@@ -621,7 +546,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: GoogleFonts.outfit(
                           fontSize: 10,
                           fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
-                          color: isToday ? _kMint : Colors.white.withOpacity(0.35),
+                          color: isToday ? PUI.mint : Colors.white.withOpacity(0.35),
                         ),
                       ),
                     ),
@@ -653,10 +578,10 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 14),
           Row(
             children: [
-              _buildActionCard("Start Workout", Icons.play_circle_fill, _kPrimary,
+              _buildActionCard("Start Workout", Icons.play_circle_fill, PUI.primary,
                   () => _showVibeCheck(null, "Quick Workout")),
               const SizedBox(width: 12),
-              _buildActionCard("Custom Plan", Icons.edit_note, _kPink, () async {
+              _buildActionCard("Custom Plan", Icons.edit_note, PUI.pink, () async {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const WorkoutBuilderScreen()),
@@ -668,10 +593,10 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              _buildActionCard("Weekly Split", Icons.calendar_month, _kMint,
+              _buildActionCard("Weekly Split", Icons.calendar_month, PUI.mint,
                   () => Navigator.push(context, MaterialPageRoute(builder: (context) => CalendarScreen()))),
               const SizedBox(width: 12),
-              _buildActionCard("My Progress", Icons.trending_up, _kAmber,
+              _buildActionCard("My Progress", Icons.trending_up, PUI.amber,
                   () => Navigator.push(context, MaterialPageRoute(builder: (context) => const StatisticsScreen()))),
             ],
           ),
@@ -682,9 +607,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildActionCard(String title, IconData icon, Color color, VoidCallback? onTap) {
     return Expanded(
-      child: _Pressable(
+      child: Pressable(
         onTap: onTap,
-        child: _glass(
+        child: Glass(
           radius: 22,
           child: Padding(
             padding: const EdgeInsets.all(18),
@@ -727,7 +652,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF0D1016),
+      backgroundColor: PUI.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
@@ -746,9 +671,9 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 width: 80,
                 height: 80,
-                decoration: BoxDecoration(color: _kMint.withOpacity(0.12), shape: BoxShape.circle),
-                child: Icon(Icons.shield, color: _kMint, size: 40,
-                    shadows: [Shadow(color: _kMint.withOpacity(0.8), blurRadius: 14)]),
+                decoration: BoxDecoration(color: PUI.mint.withOpacity(0.12), shape: BoxShape.circle),
+                child: Icon(Icons.shield, color: PUI.mint, size: 40,
+                    shadows: [Shadow(color: PUI.mint.withOpacity(0.8), blurRadius: 14)]),
               ),
               const SizedBox(height: 16),
               Text("Recovery Bank",
@@ -761,17 +686,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: _kMint.withOpacity(0.1),
+                    color: PUI.mint.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: _kMint.withOpacity(0.3)),
+                    border: Border.all(color: PUI.mint.withOpacity(0.3)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.check_circle, color: _kMint),
+                      const Icon(Icons.check_circle, color: PUI.mint),
                       const SizedBox(width: 8),
                       Text("Today's streak is frozen! ❄️",
-                          style: GoogleFonts.outfit(color: _kMint, fontWeight: FontWeight.w700)),
+                          style: GoogleFonts.outfit(color: PUI.mint, fontWeight: FontWeight.w700)),
                     ],
                   ),
                 )
@@ -782,7 +707,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: ElevatedButton(
                     onPressed: recoveryCoins > 0 ? () => _spendCoinAndFreeze(todayStr) : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: recoveryCoins > 0 ? _kPrimary : Colors.grey.shade800,
+                      backgroundColor: recoveryCoins > 0 ? PUI.primary : Colors.grey.shade800,
                       disabledBackgroundColor: Colors.grey.shade800,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
@@ -800,7 +725,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // FIX 5: Made async + added mounted check after awaits
   Future<void> _spendCoinAndFreeze(String dateStr) async {
     final success = await SettingsStorage.spendRecoveryCoin();
     if (!success) return;
@@ -815,43 +739,9 @@ class _HomeScreenState extends State<HomeScreen> {
           SizedBox(width: 8),
           Text("Streak frozen for today! ❄️"),
         ]),
-        backgroundColor: _kPrimary,
+        backgroundColor: PUI.primary,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-}
-
-// ════════════════════════════════════════════════════════════
-//  SUPPORT WIDGETS
-// ════════════════════════════════════════════════════════════
-
-class _Pressable extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-
-  const _Pressable({required this.child, this.onTap});
-
-  @override
-  State<_Pressable> createState() => _PressableState();
-}
-
-class _PressableState extends State<_Pressable> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _pressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-        child: widget.child,
       ),
     );
   }
@@ -877,7 +767,7 @@ class _RingPainter extends CustomPainter {
 
     final fillPaint = Paint()
       ..shader = SweepGradient(
-        colors: [_kPrimary, _kMint],
+        colors: [PUI.primary, PUI.mint],
       ).createShader(rect)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 5

@@ -17,14 +17,9 @@ void main() async {
   await CustomWorkoutStorage.init();
   await SettingsStorage.init();
   await ProgramStorage.init();
+  
+  // 🚀 Loads the 500 exercises from your local JSON file instantly!
   await ExerciseDbService.init();
-
-  // 🔄 FORCE REFRESH (one-time) — probes the base endpoint for real GIFs.
-  // Watch the terminal for the 🎬 line. Once GIFs are confirmed,
-  // change this back to ExerciseDbService.load()
-  ExerciseDbService.fetchAndCache().then(
-    (list) => debugPrint('✅ ExerciseDB loaded: ${list.length} exercises'),
-  );
 
   runApp(const WorkoutApp());
 }

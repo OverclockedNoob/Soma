@@ -1,12 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart' show rootBundle;
 
-import '../config/api_keys.dart';
-
-// ── MODEL ─────────────────────────────────────────────────────
+// ── MODEL ────────────────────────────────────────────────────
 class ExerciseDbExercise {
   final String id;
   final String name;
@@ -26,7 +23,6 @@ class ExerciseDbExercise {
     required this.instructions,
   });
 
-  /// Checks 13 possible key names for media — catches any naming variant
   static String _extractMedia(Map<String, dynamic> json) {
     const keys = [
       'gifUrl', 'gifURL', 'gif_url', 'gif',
@@ -105,181 +101,27 @@ class ExerciseDbExercise {
   }
 }
 
-// ── SERVICE ───────────────────────────────────────────────────
+// ── SERVICE: 100% LOCAL — ZERO NETWORK, ZERO KEY, ZERO QUOTA ──
 class ExerciseDbService {
-  static const String _boxName = 'exercisedb_cache';
-  static const String _dataKey = 'exercises';
-  static const String _timeKey = 'fetched_at';
-
+  static const String _assetPath = 'assets/exercises.json';
   static List<ExerciseDbExercise>? _memoryCache;
-  static bool _printedKeys = false;
 
-  static Future<void> init() async => await Hive.openBox(_boxName);
-  static Box get _box => Hive.box(_boxName);
-
-  static Map<String, String> get _headers => {
-        'x-rapidapi-key': ApiKeys.exercisedbKey,
-        'x-rapidapi-host': ApiKeys.exercisedbHost,
-      };
-
-  static List<ExerciseDbExercise> getCached() {
-    if (_memoryCache != null) return _memoryCache!;
-    final raw = _box.get(_dataKey);
-    if (raw == null) return [];
+  static Future<void> init() async {
+    if (_memoryCache != null) return;
     try {
-      final List<dynamic> list = jsonDecode(raw as String);
+      final raw = await rootBundle.loadString(_assetPath);
+      final list = jsonDecode(raw) as List;
       _memoryCache = list
           .map((e) =>
               ExerciseDbExercise.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
-      return _memoryCache!;
+      debugPrint(
+          '✅ ExerciseDB: ${_memoryCache!.length} exercises loaded from bundled asset (offline!)');
     } catch (e) {
-      debugPrint('ExerciseDbService.getCached error: $e');
-      return [];
+      debugPrint('❌ ExerciseDB asset error: $e');
+      _memoryCache = [];
     }
   }
 
-  static bool get isStale {
-    final t = _box.get(_timeKey);
-    if (t == null) return true;
-    final fetched = DateTime.fromMillisecondsSinceEpoch(t as int);
-    return DateTime.now().difference(fetched).inDays >= 7;
-  }
-
-  /// Safe page fetch with 15s timeout + type guard
-  static Future<List<dynamic>?> _getPage(Uri uri) async {
-    final res = await http
-        .get(uri, headers: _headers)
-        .timeout(const Duration(seconds: 15));
-    if (res.statusCode != 200) return null;
-    final decoded = jsonDecode(res.body);
-    return decoded is List ? decoded : null;
-  }
-
-  /// Strategy 1: paginate the BASE endpoint (biggest source)
-  static Future<List<ExerciseDbExercise>> _fetchBasePaginated() async {
-    final seen = <String, ExerciseDbExercise>{};
-    const pageSize = 10;
-    const maxPages = 50;
-
-    for (int page = 0; page < maxPages; page++) {
-      final uri = Uri.https(
-        ApiKeys.exercisedbHost,
-        '/exercises',
-        {'limit': '$pageSize', 'offset': '${page * pageSize}'},
-      );
-
-      final data = await _getPage(uri);
-      if (data == null || data.isEmpty) break;
-
-      // 🕵️ ONE-TIME truth print: the API's actual field names
-      if (!_printedKeys) {
-        _printedKeys = true;
-        debugPrint('🔑 API FIELDS: ${(data.first as Map).keys.toList()}');
-      }
-
-      int newCount = 0;
-      for (final e in data) {
-        final ex =
-            ExerciseDbExercise.fromJson(Map<String, dynamic>.from(e as Map));
-        if (!seen.containsKey(ex.id)) {
-          seen[ex.id] = ex;
-          newCount++;
-        }
-      }
-
-      if (newCount == 0) break;
-      if (data.length < pageSize) break;
-    }
-
-    return seen.values.toList();
-  }
-
-  /// Strategy 2: bodyPart endpoints (fallback)
-  static Future<List<ExerciseDbExercise>> _fetchByBodyPart() async {
-    final bodyParts = [
-      'back', 'cardio', 'chest', 'lower arms', 'lower legs',
-      'shoulders', 'upper arms', 'upper legs', 'waist',
-    ];
-
-    final all = <ExerciseDbExercise>[];
-    for (final part in bodyParts) {
-      final seen = <String, ExerciseDbExercise>{};
-      const pageSize = 10;
-      const maxPages = 5;
-
-      for (int page = 0; page < maxPages; page++) {
-        final uri = Uri.https(
-          ApiKeys.exercisedbHost,
-          '/exercises/bodyPart/$part',
-          {'limit': '$pageSize', 'offset': '${page * pageSize}'},
-        );
-
-        final data = await _getPage(uri);
-        if (data == null || data.isEmpty) break;
-
-        int newCount = 0;
-        for (final e in data) {
-          final ex =
-              ExerciseDbExercise.fromJson(Map<String, dynamic>.from(e as Map));
-          if (!seen.containsKey(ex.id)) {
-            seen[ex.id] = ex;
-            newCount++;
-          }
-        }
-
-        if (newCount == 0) break;
-        if (data.length < pageSize) break;
-      }
-
-      all.addAll(seen.values);
-      debugPrint('✅ $part: ${seen.length} exercises');
-    }
-    return all;
-  }
-
-  static Future<List<ExerciseDbExercise>> fetchAndCache() async {
-    List<ExerciseDbExercise> result = [];
-
-    try {
-      final base = await _fetchBasePaginated();
-      final withGif = base.where((e) => e.gifUrl.isNotEmpty).length;
-      debugPrint('🎬 BASE ENDPOINT: ${base.length} exercises, $withGif with GIFs');
-      if (base.isNotEmpty) result = base; // base = biggest source
-    } catch (e) {
-      debugPrint('❌ Base fetch error: $e');
-    }
-
-    if (result.isEmpty) {
-      try {
-        result = await _fetchByBodyPart();
-      } catch (e) {
-        debugPrint('❌ BodyPart fetch error: $e');
-      }
-    }
-
-    if (result.isEmpty) {
-      throw Exception('Failed to fetch any exercises from API');
-    }
-
-    final uniqueMap = {for (var ex in result) ex.id: ex};
-    final uniqueList = uniqueMap.values.toList();
-    await _box.put(_dataKey, jsonEncode(uniqueList.map((e) => e.toJson()).toList()));
-    await _box.put(_timeKey, DateTime.now().millisecondsSinceEpoch);
-    _memoryCache = uniqueList;
-    debugPrint('✅ ExerciseDB: cached ${uniqueList.length} unique exercises');
-
-    return uniqueList;
-  }
-
-  static Future<List<ExerciseDbExercise>> load() async {
-    final cached = getCached();
-    if (cached.isNotEmpty && !isStale) return cached;
-    try {
-      return await fetchAndCache();
-    } catch (e) {
-      debugPrint('ExerciseDbService.load error: $e');
-      return cached;
-    }
-  }
+  static List<ExerciseDbExercise> getCached() => _memoryCache ?? const [];
 }
