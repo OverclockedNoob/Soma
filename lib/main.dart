@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'services/storage_services.dart';
+import 'services/exercisedb_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
 import 'screens/stats_screen.dart';
@@ -16,6 +17,15 @@ void main() async {
   await CustomWorkoutStorage.init();
   await SettingsStorage.init();
   await ProgramStorage.init();
+  await ExerciseDbService.init();
+
+  // 🔄 FORCE REFRESH (one-time) — probes the base endpoint for real GIFs.
+  // Watch the terminal for the 🎬 line. Once GIFs are confirmed,
+  // change this back to ExerciseDbService.load()
+  ExerciseDbService.fetchAndCache().then(
+    (list) => debugPrint('✅ ExerciseDB loaded: ${list.length} exercises'),
+  );
+
   runApp(const WorkoutApp());
 }
 

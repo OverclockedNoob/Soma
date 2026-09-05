@@ -1,5 +1,7 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:workout_tracker/services/storage_services.dart';
+import '../core/premium_ui.dart';
 
 class SplitBuilderScreen extends StatefulWidget {
   const SplitBuilderScreen({super.key});
@@ -9,12 +11,10 @@ class SplitBuilderScreen extends StatefulWidget {
 }
 
 class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
-  final TextEditingController _nameController = TextEditingController(
-    text: "My 4-Week Split",
-  );
+  final TextEditingController _nameController = TextEditingController(text: "My 4-Week Split");
   int _durationWeeks = 4;
 
-  // 🎨 NEW: Color Picker State
+  // 🎨 COLOR PICKER STATE
   int _selectedColorValue = 0xFF6C5CE7; // Default Purple
   final List<Color> _presetColors = [
     const Color(0xFF6C5CE7), // Purple
@@ -55,115 +55,111 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
   void _assignWorkoutToDay(String day) {
     if (_savedWorkouts.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please create a Custom Workout first!")),
+        SnackBar(content: Text("Please create a Custom Workout first!", style: PUI.text())),
       );
       return;
     }
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E1E3F),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.all(24.0),
+              decoration: BoxDecoration(
+                color: PUI.surface.withOpacity(0.95),
+                border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
               ),
-              const SizedBox(height: 16),
-              Text(
-                "Assign workout for $day",
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() => _schedule[day] = null);
-                    Navigator.pop(context);
-                  },
-                  icon: const Icon(Icons.bedtime, color: Colors.white),
-                  label: const Text(
-                    "Rest Day",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+                  const SizedBox(height: 20),
+                  GradientText("Assign for $day", size: 22, weight: FontWeight.w800),
+                  const SizedBox(height: 20),
+                  
+                  // Rest Day Option
+                  Pressable(
+                    onTap: () {
+                      setState(() => _schedule[day] = null);
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: PUI.mint.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: PUI.mint.withOpacity(0.4)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.bedtime, color: PUI.mint),
+                          const SizedBox(width: 12),
+                          Text("Rest Day", style: PUI.text(size: 16, weight: FontWeight.w700, color: PUI.mint)),
+                        ],
+                      ),
                     ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.1),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _savedWorkouts.length,
-                  itemBuilder: (context, index) {
-                    final workout = _savedWorkouts[index];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          setState(() => _schedule[day] = workout['id']);
-                          Navigator.pop(context);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(
-                            0xFF6C5CE7,
-                          ).withOpacity(0.2),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          side: const BorderSide(color: Color(0xFF6C5CE7)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.fitness_center,
-                              color: Color(0xFF6C5CE7),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                workout['name'],
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
+                  const SizedBox(height: 16),
+                  
+                  Row(children: [Expanded(child: Divider(color: Colors.white.withOpacity(0.1))), Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text("OR", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.4)))), Expanded(child: Divider(color: Colors.white.withOpacity(0.1)))]),
+                  const SizedBox(height: 16),
+
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _savedWorkouts.length,
+                      itemBuilder: (context, index) {
+                        final workout = _savedWorkouts[index];
+                        final isSelected = _schedule[day] == workout['id'];
+                        final themeColor = Color(_selectedColorValue);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Pressable(
+                            onTap: () {
+                              setState(() => _schedule[day] = workout['id']);
+                              Navigator.pop(context);
+                            },
+                            child: Glass(
+                              radius: 16,
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: themeColor.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(Icons.fitness_center, color: themeColor, size: 20),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      workout['name'],
+                                      style: PUI.text(size: 16, weight: FontWeight.w700),
+                                    ),
+                                  ),
+                                  if (isSelected) Icon(Icons.check_circle, color: themeColor),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  SizedBox(height: MediaQuery.of(context).padding.bottom + 10),
+                ],
               ),
-              const SizedBox(height: 16),
-            ],
+            ),
           ),
         );
       },
@@ -172,9 +168,9 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
 
   void _saveSplit() {
     if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Please name your split!")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please name your split!", style: PUI.text())),
+      );
       return;
     }
 
@@ -184,14 +180,14 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
       "durationWeeks": _durationWeeks,
       "startDate": DateTime.now().toIso8601String(),
       "schedule": _schedule,
-      "colorValue": _selectedColorValue, // 🎨 SAVE THE COLOR
+      "colorValue": _selectedColorValue,
     };
 
     ProgramStorage.saveProgram(program);
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text("${program['name']} created successfully! 🎉"),
+        content: Text("${program['name']} created successfully! 🎉", style: PUI.text(weight: FontWeight.w700)),
         backgroundColor: Color(_selectedColorValue),
       ),
     );
@@ -211,346 +207,164 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
   Widget build(BuildContext context) {
     final selectedColor = Color(_selectedColorValue);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0E21),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          "Create Split",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-      body:
-          _isLoading
-              ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF6C5CE7)),
-              )
-              : SafeArea(
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Name Input
-                            const Text(
-                              "Split Name",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
+    return PremiumScaffold(
+      title: "Create Split",
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: PUI.primary))
+          : Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ── NAME INPUT ────────────────────────
+                        Text("Split Name", style: PUI.text(size: 14, weight: FontWeight.w700, color: Colors.white.withOpacity(0.6))),
+                        const SizedBox(height: 8),
+                        Glass(
+                          radius: 16,
+                          padding: EdgeInsets.zero,
+                          child: TextField(
+                            controller: _nameController,
+                            style: PUI.text(size: 16, weight: FontWeight.w600),
+                            decoration: InputDecoration(
+                              hintText: 'e.g., Month 1: PPL',
+                              hintStyle: PUI.text(color: Colors.white.withOpacity(0.3)),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.all(20),
                             ),
-                            const SizedBox(height: 12),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1E1E3F),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: selectedColor.withOpacity(0.5),
-                                ),
-                              ),
-                              child: TextField(
-                                controller: _nameController,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: 'e.g., Month 1: PPL',
-                                  hintStyle: TextStyle(
-                                    color: Colors.white.withOpacity(0.3),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // ── COLOR PICKER ──────────────────────
+                        Text("Theme Color", style: PUI.text(size: 14, weight: FontWeight.w700, color: Colors.white.withOpacity(0.6))),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 44,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _presetColors.length,
+                            separatorBuilder: (_, __) => const SizedBox(width: 16),
+                            itemBuilder: (context, index) {
+                              final color = _presetColors[index];
+                              final isSelected = _selectedColorValue == color.value;
+                              return GestureDetector(
+                                onTap: () => setState(() => _selectedColorValue = color.value),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  width: isSelected ? 44 : 36,
+                                  height: isSelected ? 44 : 36,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: isSelected ? Colors.white : Colors.transparent, width: 3),
+                                    boxShadow: isSelected ? [BoxShadow(color: color.withOpacity(0.6), blurRadius: 12)] : [],
                                   ),
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.all(20),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 32),
 
-                            // 🎨 COLOR PICKER
-                            const Text(
-                              "Split Theme Color",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children:
-                                  _presetColors.map((color) {
-                                    bool isSelected =
-                                        _selectedColorValue == color.value;
-                                    return GestureDetector(
-                                      onTap:
-                                          () => setState(
-                                            () =>
-                                                _selectedColorValue =
-                                                    color.value,
-                                          ),
-                                      child: Container(
-                                        margin: const EdgeInsets.only(
-                                          right: 14,
-                                        ),
-                                        width: 36,
-                                        height: 36,
-                                        decoration: BoxDecoration(
-                                          color: color,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color:
-                                                isSelected
-                                                    ? Colors.white
-                                                    : Colors.transparent,
-                                            width: 3,
-                                          ),
-                                          boxShadow:
-                                              isSelected
-                                                  ? [
-                                                    BoxShadow(
-                                                      color: color.withOpacity(
-                                                        0.6,
-                                                      ),
-                                                      blurRadius: 10,
-                                                    ),
-                                                  ]
-                                                  : null,
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
-                            ),
-                            const SizedBox(height: 32),
-
-                            // Duration Selector
-                            const Text(
-                              "Duration",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1E1E3F),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: selectedColor.withOpacity(0.3),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                        // ── DURATION ──────────────────────────
+                        Text("Duration", style: PUI.text(size: 14, weight: FontWeight.w700, color: Colors.white.withOpacity(0.6))),
+                        const SizedBox(height: 8),
+                        Glass(
+                          radius: 20,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text("Weeks", style: PUI.text(size: 16, weight: FontWeight.w700)),
+                              Row(
                                 children: [
-                                  const Text(
-                                    "Weeks",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                    ),
+                                  Pressable(
+                                    onTap: _durationWeeks > 1 ? () => setState(() => _durationWeeks--) : null,
+                                    child: Icon(Icons.remove_circle_outline, color: _durationWeeks > 1 ? selectedColor : Colors.white24, size: 28),
                                   ),
-                                  Row(
-                                    children: [
-                                      IconButton(
-                                        onPressed:
-                                            _durationWeeks > 1
-                                                ? () => setState(
-                                                  () => _durationWeeks--,
-                                                )
-                                                : null,
-                                        icon: Icon(
-                                          Icons.remove_circle_outline,
-                                          color:
-                                              _durationWeeks > 1
-                                                  ? selectedColor
-                                                  : Colors.white24,
-                                        ),
-                                      ),
-                                      Text(
-                                        "$_durationWeeks",
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      IconButton(
-                                        onPressed:
-                                            () => setState(
-                                              () => _durationWeeks++,
-                                            ),
-                                        icon: Icon(
-                                          Icons.add_circle_outline,
-                                          color: selectedColor,
-                                        ),
-                                      ),
-                                    ],
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                                    child: GradientText("$_durationWeeks", size: 28, colors: [Colors.white, selectedColor]),
+                                  ),
+                                  Pressable(
+                                    onTap: () => setState(() => _durationWeeks++),
+                                    child: Icon(Icons.add_circle_outline, color: selectedColor, size: 28),
                                   ),
                                 ],
                               ),
-                            ),
-                            const SizedBox(height: 32),
-
-                            // Schedule Header
-                            const Text(
-                              "Weekly Schedule",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "Tap a day to assign a workout or rest.",
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.5),
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Days of the Week List
-                            ..._schedule.keys.map((day) {
-                              final workoutName = _getWorkoutNameForDay(day);
-                              final isRest = workoutName == null;
-
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1E1E3F),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color:
-                                        isRest
-                                            ? Colors.white.withOpacity(0.1)
-                                            : selectedColor,
-                                  ),
-                                ),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  leading: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          isRest
-                                              ? Colors.white.withOpacity(0.1)
-                                              : selectedColor.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Icon(
-                                      isRest
-                                          ? Icons.bedtime
-                                          : Icons.fitness_center,
-                                      color:
-                                          isRest
-                                              ? Colors.white54
-                                              : selectedColor,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  title: Text(
-                                    day,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    isRest ? "Rest Day" : workoutName,
-                                    style: TextStyle(
-                                      color:
-                                          isRest
-                                              ? Colors.white54
-                                              : selectedColor,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  trailing: const Icon(
-                                    Icons.chevron_right,
-                                    color: Colors.white54,
-                                  ),
-                                  onTap: () => _assignWorkoutToDay(day),
-                                ),
-                              );
-                            }),
-                            const SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Save Button
-                    Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Container(
-                        width: double.infinity,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              selectedColor,
-                              selectedColor.withOpacity(0.7),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: selectedColor.withOpacity(0.4),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: ElevatedButton(
-                          onPressed: _saveSplit,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.save, color: Colors.white, size: 24),
-                              SizedBox(width: 8),
-                              Text(
-                                'Save Split Program',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
                             ],
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 32),
+
+                        // ── SCHEDULE ──────────────────────────
+                        const SectionTitle("Weekly Schedule"),
+                        const SizedBox(height: 16),
+                        ..._schedule.keys.map((day) {
+                          final workoutName = _getWorkoutNameForDay(day);
+                          final isRest = workoutName == null;
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Pressable(
+                              onTap: () => _assignWorkoutToDay(day),
+                              child: Glass(
+                                radius: 16,
+                                padding: const EdgeInsets.all(16),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: isRest ? Colors.white.withOpacity(0.05) : selectedColor.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        isRest ? Icons.bedtime : Icons.fitness_center,
+                                        color: isRest ? Colors.white54 : selectedColor,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(day, style: PUI.text(size: 16, weight: FontWeight.w700)),
+                                          Text(
+                                            isRest ? "Rest Day" : workoutName!,
+                                            style: PUI.text(size: 12, color: isRest ? Colors.white54 : selectedColor, weight: FontWeight.w600),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.3)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 24),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+
+                // ── SAVE BUTTON ───────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: PrimaryButton(
+                    label: "Save Split Program",
+                    icon: Icons.save_rounded,
+                    onTap: _saveSplit,
+                  ),
+                ),
+              ],
+            ),
     );
   }
-}
+} 

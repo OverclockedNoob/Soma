@@ -22,6 +22,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
     "Back",
     "Legs",
     "Arms",
+    "Shoulders",
     "Core",
     "Cardio",
   ];
@@ -44,20 +45,22 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
     super.dispose();
   }
 
-  List<Map<String, String>> getFilteredExercises() {
-    var exercises = List<Map<String, String>>.from(ExerciseData.allExercises);
-    if (selectedCategory != "All")
+  List<Map<String, dynamic>> getFilteredExercises() {
+    var exercises = List<Map<String, dynamic>>.from(ExerciseData.allExercises);
+    if (selectedCategory != "All") {
       exercises = exercises.where((e) => e["muscle"] == selectedCategory).toList();
-    if (selectedDifficulty != "All")
+    }
+    if (selectedDifficulty != "All") {
       exercises = exercises.where((e) => e["difficulty"] == selectedDifficulty).toList();
+    }
     if (searchQuery.isNotEmpty) {
       exercises = exercises
           .where((e) =>
-              e["name"]!.toLowerCase().contains(searchQuery.toLowerCase()) ||
-              e["muscle"]!.toLowerCase().contains(searchQuery.toLowerCase()))
+              (e["name"] as String).toLowerCase().contains(searchQuery.toLowerCase()) ||
+              (e["muscle"] as String).toLowerCase().contains(searchQuery.toLowerCase()))
           .toList();
     }
-    exercises.sort((a, b) => a["name"]!.compareTo(b["name"]!));
+    exercises.sort((a, b) => (a["name"] as String).compareTo(b["name"] as String));
     return exercises;
   }
 
@@ -110,10 +113,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      GradientText(
-                        "Find Your\nNext Move",
-                        size: 28,
-                      ),
+                      GradientText("Find Your\nNext Move", size: 28),
                     ],
                   ),
                   _buildStatsBadge(filteredExercises.length),
@@ -157,18 +157,13 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
             const SizedBox(height: 24),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "${filteredExercises.length} exercise${filteredExercises.length == 1 ? '' : 's'}",
-                    style: PUI.text(
-                      size: 14,
-                      weight: FontWeight.w600,
-                      color: Colors.white.withOpacity(0.5),
-                    ),
-                  ),
-                ],
+              child: Text(
+                "${filteredExercises.length} exercise${filteredExercises.length == 1 ? '' : 's'}",
+                style: PUI.text(
+                  size: 14,
+                  weight: FontWeight.w600,
+                  color: Colors.white.withOpacity(0.5),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -184,9 +179,9 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                   final exercise = filteredExercises[index];
                   return _buildExerciseCard(
                     context,
-                    exercise["name"]!,
-                    exercise["muscle"]!,
-                    exercise["difficulty"]!,
+                    exercise["name"] as String,
+                    exercise["muscle"] as String,
+                    exercise["difficulty"] as String,
                   );
                 },
               ),
@@ -206,18 +201,11 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
         children: [
           Text(
             "$count",
-            style: PUI.text(
-              size: 24,
-              weight: FontWeight.w800,
-              color: PUI.primary,
-            ),
+            style: PUI.text(size: 24, weight: FontWeight.w800, color: PUI.primary),
           ),
           Text(
             "of ${ExerciseData.allExercises.length}",
-            style: PUI.text(
-              size: 10,
-              color: Colors.white.withOpacity(0.4),
-            ),
+            style: PUI.text(size: 10, color: Colors.white.withOpacity(0.4)),
           ),
         ],
       ),
@@ -403,11 +391,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                     const SizedBox(width: 8),
                     Text(
                       'Clear all filters',
-                      style: PUI.text(
-                        size: 14,
-                        weight: FontWeight.w600,
-                        color: PUI.primary,
-                      ),
+                      style: PUI.text(size: 14, weight: FontWeight.w600, color: PUI.primary),
                     ),
                   ],
                 ),
@@ -484,11 +468,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                           ),
                           child: Text(
                             muscle,
-                            style: PUI.text(
-                              size: 11,
-                              weight: FontWeight.w700,
-                              color: muscleColor,
-                            ),
+                            style: PUI.text(size: 11, weight: FontWeight.w700, color: muscleColor),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -496,11 +476,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                         const SizedBox(width: 4),
                         Text(
                           difficulty,
-                          style: PUI.text(
-                            size: 11,
-                            weight: FontWeight.w600,
-                            color: difficultyColor,
-                          ),
+                          style: PUI.text(size: 11, weight: FontWeight.w600, color: difficultyColor),
                         ),
                       ],
                     ),

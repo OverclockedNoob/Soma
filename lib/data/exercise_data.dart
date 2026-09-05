@@ -1,36 +1,27 @@
 import 'package:flutter/material.dart';
+import '../services/exercisedb_service.dart';
 
 class ExerciseData {
-  static const List<Map<String, String>> allExercises = [
-    {"name": "Bicep Curls", "muscle": "Arms", "difficulty": "Beginner"},
-    {
-      "name": "Diamond Push-ups",
-      "muscle": "Chest",
-      "difficulty": "Intermediate",
-    },
-    {"name": "Hammer Curls", "muscle": "Arms", "difficulty": "Beginner"},
-    {"name": "Tricep Dips", "muscle": "Arms", "difficulty": "Intermediate"},
-    {"name": "Burpees", "muscle": "Cardio", "difficulty": "Intermediate"},
-    {"name": "High Knees", "muscle": "Cardio", "difficulty": "Beginner"},
-    {"name": "Jump Rope", "muscle": "Cardio", "difficulty": "Beginner"},
-    {"name": "Running", "muscle": "Cardio", "difficulty": "Beginner"},
-    {"name": "Chin-ups", "muscle": "Back", "difficulty": "Intermediate"},
-    {"name": "Lat Pulldown", "muscle": "Back", "difficulty": "Beginner"},
-    {"name": "Pull-ups", "muscle": "Back", "difficulty": "Intermediate"},
-    {"name": "Crunches", "muscle": "Core", "difficulty": "Beginner"},
-    {
-      "name": "Mountain Climbers",
-      "muscle": "Core",
-      "difficulty": "Intermediate",
-    },
-    {"name": "Plank", "muscle": "Core", "difficulty": "Beginner"},
-    {"name": "Russian Twists", "muscle": "Core", "difficulty": "Intermediate"},
-    {"name": "Jump Squats", "muscle": "Legs", "difficulty": "Intermediate"},
-    {"name": "Lunges", "muscle": "Legs", "difficulty": "Beginner"},
-    {"name": "Squats", "muscle": "Legs", "difficulty": "Beginner"},
-    {"name": "Push-ups", "muscle": "Chest", "difficulty": "Beginner"},
-    {"name": "Wide Push-ups", "muscle": "Chest", "difficulty": "Beginner"},
-  ];
+  /// Returns the full list of exercises from the API cache
+  static List<Map<String, dynamic>> get allExercises {
+    final apiExercises = ExerciseDbService.getCached();
+
+    final merged = apiExercises.map((ex) {
+      return {
+        'name': ex.name,
+        'muscle': ex.muscleCategory,
+        'difficulty': ex.difficulty,
+        'gifUrl': ex.gifUrl,
+        'instructions': ex.instructions,
+        'equipment': ex.equipment,
+        'target': ex.target,
+      };
+    }).toList();
+
+    // Sort alphabetically
+    merged.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+    return merged;
+  }
 
   static Color getMuscleColor(String? muscle) {
     switch (muscle) {
@@ -42,6 +33,8 @@ class ExerciseData {
         return const Color(0xFFFFB800);
       case 'Arms':
         return const Color(0xFF6C5CE7);
+      case 'Shoulders':
+        return const Color(0xFF00E5FF); // New cyan for shoulders
       case 'Core':
         return const Color(0xFF9B59B6);
       case 'Cardio':
@@ -60,6 +53,8 @@ class ExerciseData {
       case 'Legs':
         return Icons.directions_run;
       case 'Arms':
+        return Icons.fitness_center;
+      case 'Shoulders':
         return Icons.fitness_center;
       case 'Core':
         return Icons.self_improvement;
@@ -97,7 +92,8 @@ class ExerciseData {
   }
 
   static int getCountForCategory(String category) {
-    if (category == 'All') return allExercises.length;
-    return allExercises.where((e) => e['muscle'] == category).length;
+    final exercises = allExercises;
+    if (category == 'All') return exercises.length;
+    return exercises.where((e) => e['muscle'] == category).length;
   }
 }

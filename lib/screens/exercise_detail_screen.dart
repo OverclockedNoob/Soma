@@ -1,5 +1,10 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:workout_tracker/data/exercise_data.dart';
+import 'package:workout_tracker/services/exercisedb_service.dart';
+import '../config/api_keys.dart';
+import '../core/premium_ui.dart';
+import 'active_workout_screen.dart';
 
 class ExerciseDetailScreen extends StatelessWidget {
   final String name;
@@ -18,16 +23,28 @@ class ExerciseDetailScreen extends StatelessWidget {
   IconData get difficultyIcon => ExerciseData.getDifficultyIcon(difficulty);
   Color get difficultyColor => ExerciseData.getDifficultyColor(difficulty);
 
+  // ── READ API DATA DIRECTLY FROM THE SERVICE CACHE ───────────
+  ExerciseDbExercise? get _apiExercise {
+    try {
+      return ExerciseDbService.getCached().firstWhere((e) => e.name == name);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? get gifUrl => _apiExercise?.gifUrl;
+  String? get equipment => _apiExercise?.equipment;
+  String? get target => _apiExercise?.target;
+  List<String> get apiInstructions => _apiExercise?.instructions ?? [];
+
+  bool get hasGif => gifUrl != null && gifUrl!.isNotEmpty;
+
   String get recommendedSets {
     switch (difficulty) {
-      case 'Beginner':
-        return '2-3';
-      case 'Intermediate':
-        return '3-4';
-      case 'Advanced':
-        return '4-5';
-      default:
-        return '3-4';
+      case 'Beginner': return '2-3';
+      case 'Intermediate': return '3-4';
+      case 'Advanced': return '4-5';
+      default: return '3-4';
     }
   }
 
@@ -35,36 +52,25 @@ class ExerciseDetailScreen extends StatelessWidget {
     if (muscle == 'Cardio') return '30-60s';
     if (muscle == 'Core') {
       switch (difficulty) {
-        case 'Beginner':
-          return '20-30s';
-        case 'Intermediate':
-          return '30-60s';
-        default:
-          return '45-90s';
+        case 'Beginner': return '20-30s';
+        case 'Intermediate': return '30-60s';
+        default: return '45-90s';
       }
     }
     switch (difficulty) {
-      case 'Beginner':
-        return '10-15';
-      case 'Intermediate':
-        return '8-12';
-      case 'Advanced':
-        return '6-10';
-      default:
-        return '8-12';
+      case 'Beginner': return '10-15';
+      case 'Intermediate': return '8-12';
+      case 'Advanced': return '6-10';
+      default: return '8-12';
     }
   }
 
   String get recommendedRest {
     switch (difficulty) {
-      case 'Beginner':
-        return '60s';
-      case 'Intermediate':
-        return '45s';
-      case 'Advanced':
-        return '30s';
-      default:
-        return '60s';
+      case 'Beginner': return '60s';
+      case 'Intermediate': return '45s';
+      case 'Advanced': return '30s';
+      default: return '60s';
     }
   }
 
@@ -87,19 +93,19 @@ class ExerciseDetailScreen extends StatelessWidget {
         'title': 'Focus on Form',
         'description': 'Quality over quantity - maintain proper form',
         'icon': Icons.check_circle,
-        'color': const Color(0xFF4CAF50),
+        'color': PUI.mint,
       },
       {
         'title': 'Breathe Right',
         'description': 'Exhale on exertion, inhale on release',
         'icon': Icons.air,
-        'color': const Color(0xFF00D9FF),
+        'color': PUI.primary,
       },
       {
         'title': 'Stay Hydrated',
         'description': 'Drink water before, during, and after',
         'icon': Icons.water_drop,
-        'color': const Color(0xFF6C5CE7),
+        'color': PUI.amber,
       },
     ];
   }
@@ -114,226 +120,196 @@ class ExerciseDetailScreen extends StatelessWidget {
   void _showComingSoon(BuildContext context, String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('🚀 $feature is being upgraded next!'),
-        backgroundColor: const Color(0xFF6C5CE7),
+        content: Text('🚀 $feature is being upgraded next!', style: PUI.text(weight: FontWeight.w600)),
+        backgroundColor: PUI.surface,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  // 🎯 REAL QUICK START: launches a 1-exercise workout right now
+  void _quickStart(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ActiveWorkoutScreen(
+          customExercises: [
+            {
+              'name': name,
+              'muscle': muscle,
+              'difficulty': difficulty,
+              'sets': 3,
+              'targetReps': 10,
+            },
+          ],
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0E21),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0E21),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              children: [
-                Icon(difficultyIcon, color: difficultyColor, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  difficulty,
-                  style: TextStyle(
-                    color: difficultyColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
+    return PremiumScaffold(
+      title: 'Exercise',
+      actions: [
+        Container(
+          margin: const EdgeInsets.only(right: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: difficultyColor.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: difficultyColor.withOpacity(0.4)),
           ),
-        ],
-      ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(difficultyIcon, color: difficultyColor, size: 14),
+              const SizedBox(width: 6),
+              Text(
+                difficulty,
+                style: PUI.text(size: 12, weight: FontWeight.w700, color: difficultyColor),
+              ),
+            ],
+          ),
+        ),
+      ],
       body: Column(
         children: [
-          // ── 3D Video Player Viewport ─────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            child: _build3DVideoPlayer(),
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+            child: _buildVideoPlayer(),
           ),
-
-          // ── Scrollable Details ───────────────────────────────────
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  GradientText(name, size: 30, weight: FontWeight.w900),
+                  const SizedBox(height: 12),
+                  if (equipment != null || target != null)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (equipment != null && equipment!.isNotEmpty)
+                          _buildInfoChip(Icons.construction, _titleCase(equipment!)),
+                        if (target != null && target!.isNotEmpty)
+                          _buildInfoChip(Icons.track_changes, _titleCase(target!)),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   Row(
                     children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          recommendedSets,
-                          "Sets",
-                          Icons.repeat,
-                        ),
-                      ),
+                      Expanded(child: _buildStatCard(recommendedSets, "Sets", Icons.repeat)),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildStatCard(
-                          recommendedReps,
-                          "Reps",
-                          Icons.fitness_center,
-                        ),
-                      ),
+                      Expanded(child: _buildStatCard(recommendedReps, "Reps", Icons.fitness_center)),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildStatCard(
-                          recommendedRest,
-                          "Rest",
-                          Icons.timer,
-                        ),
-                      ),
+                      Expanded(child: _buildStatCard(recommendedRest, "Rest", Icons.timer)),
                     ],
                   ),
                   const SizedBox(height: 28),
-                  const Text(
-                    "Muscles Worked",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                  const SectionTitle("Muscles Worked"),
                   const SizedBox(height: 12),
-                  Container(
+                  Glass(
+                    radius: 20,
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E3F),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: muscleColor.withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
                     child: Column(
-                      children:
-                          musclesWorked.entries.map((entry) {
-                            final isPrimary = entry.key == 'Primary';
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  SizedBox(
-                                    width: 80,
-                                    child: Text(
-                                      entry.key,
-                                      style: TextStyle(
-                                        color:
-                                            isPrimary
-                                                ? muscleColor
-                                                : Colors.white.withOpacity(0.4),
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                      children: musclesWorked.entries.map((entry) {
+                        final isPrimary = entry.key == 'Primary';
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: 80,
+                                child: Text(
+                                  entry.key,
+                                  style: PUI.text(
+                                    size: 13,
+                                    weight: FontWeight.w700,
+                                    color: isPrimary ? muscleColor : Colors.white.withOpacity(0.4),
                                   ),
-                                  Expanded(
-                                    child: Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children:
-                                          entry.value.map((m) {
-                                            return Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color:
-                                                    isPrimary
-                                                        ? muscleColor
-                                                            .withOpacity(0.2)
-                                                        : Colors.white
-                                                            .withOpacity(0.05),
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
-                                              child: Text(
-                                                m,
-                                                style: TextStyle(
-                                                  color:
-                                                      isPrimary
-                                                          ? muscleColor
-                                                          : Colors.white
-                                                              .withOpacity(0.4),
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            );
-                                          }).toList(),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
-                            );
-                          }).toList(),
+                              Expanded(
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: entry.value.map((m) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isPrimary ? muscleColor.withOpacity(0.2) : Colors.white.withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        m,
+                                        style: PUI.text(
+                                          size: 12,
+                                          weight: FontWeight.w600,
+                                          color: isPrimary ? muscleColor : Colors.white.withOpacity(0.4),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ),
                   const SizedBox(height: 28),
-                  const Text(
-                    "Form Instructions",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                  const SectionTitle("Form Instructions"),
                   const SizedBox(height: 12),
-                  Container(
+                  Glass(
+                    radius: 20,
                     padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E3F),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: muscleColor.withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      instructions,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 15,
-                        height: 1.6,
-                      ),
-                    ),
+                    child: apiInstructions.isNotEmpty
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (int i = 0; i < apiInstructions.length; i++)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 14),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: muscleColor.withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          '${i + 1}',
+                                          style: PUI.text(size: 12, weight: FontWeight.w800, color: muscleColor),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          apiInstructions[i],
+                                          style: PUI.text(size: 14, color: Colors.white.withOpacity(0.8))
+                                              .copyWith(height: 1.5),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          )
+                        : Text(
+                            instructions,
+                            style: PUI.text(size: 15, color: Colors.white.withOpacity(0.8)).copyWith(height: 1.6),
+                          ),
                   ),
                   const SizedBox(height: 28),
-                  const Text(
-                    "Pro Tips",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                  const SectionTitle("Pro Tips"),
                   const SizedBox(height: 12),
                   ...proTips.map(
                     (tip) => Padding(
@@ -351,49 +327,29 @@ class ExerciseDetailScreen extends StatelessWidget {
               ),
             ),
           ),
-
-          // ── Bottom Action Buttons ────────────────────────────────
           Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
             child: Row(
               children: [
                 Expanded(
-                  child: Container(
-                    height: 56,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: muscleColor.withOpacity(0.5),
-                        width: 2,
+                  child: Pressable(
+                    onTap: () => _quickStart(context),
+                    child: Container(
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: muscleColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: muscleColor.withOpacity(0.5), width: 2),
                       ),
-                    ),
-                    child: ElevatedButton(
-                      onPressed: () => _showComingSoon(context, 'Quick Start'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
+                      child: Center(
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.play_arrow,
-                              color: muscleColor,
-                              size: 20,
-                            ),
+                            Icon(Icons.play_arrow, color: muscleColor, size: 20),
                             const SizedBox(width: 4),
                             Text(
                               "Quick Start",
-                              style: TextStyle(
-                                color: muscleColor,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: PUI.text(size: 14, weight: FontWeight.w800, color: muscleColor),
                             ),
                           ],
                         ),
@@ -404,45 +360,33 @@ class ExerciseDetailScreen extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   flex: 2,
-                  child: Container(
-                    height: 56,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [muscleColor, muscleColor.withOpacity(0.7)],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: muscleColor.withOpacity(0.4),
-                          blurRadius: 15,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: ElevatedButton(
-                      onPressed:
-                          () => _showComingSoon(context, 'Workout Builder'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_circle, color: Colors.white),
-                          SizedBox(width: 8),
-                          Text(
-                            "Add to Workout",
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                  child: Pressable(
+                    onTap: () => _showComingSoon(context, 'Workout Builder'),
+                    child: Container(
+                      height: 56,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [muscleColor, muscleColor.withOpacity(0.7)]),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: muscleColor.withOpacity(0.4),
+                            blurRadius: 15,
+                            offset: const Offset(0, 8),
                           ),
                         ],
+                      ),
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.add_circle, color: Colors.white),
+                            const SizedBox(width: 8),
+                            Text(
+                              "Add to Workout",
+                              style: PUI.text(size: 15, weight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -455,8 +399,29 @@ class ExerciseDetailScreen extends StatelessWidget {
     );
   }
 
-  // ── 3D Video Player UI ───────────────────────────────────────────
-  Widget _build3DVideoPlayer() {
+  String _titleCase(String s) =>
+      s.split(' ').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ');
+
+  Widget _buildInfoChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: PUI.mint, size: 14),
+          const SizedBox(width: 6),
+          Text(label, style: PUI.text(size: 12, weight: FontWeight.w600, color: Colors.white.withOpacity(0.7))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVideoPlayer() {
     return Container(
       width: double.infinity,
       height: 240,
@@ -464,7 +429,7 @@ class ExerciseDetailScreen extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [const Color(0xFF1A1A2E), const Color(0xFF0A0E21)],
+          colors: [PUI.surface, PUI.bg],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: muscleColor.withOpacity(0.3), width: 1),
@@ -478,190 +443,113 @@ class ExerciseDetailScreen extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          // 3D Grid Background
           Positioned.fill(
-            child: CustomPaint(
-              painter: _GridPainter(color: Colors.white.withOpacity(0.03)),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: CustomPaint(
+                painter: _GridPainter(color: Colors.white.withOpacity(0.03)),
+              ),
             ),
           ),
-
-          // Muscle Target Badge
+          if (hasGif)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: CachedNetworkImage(
+                  imageUrl: gifUrl!,
+                  httpHeaders: const {
+                    'x-rapidapi-key': ApiKeys.exercisedbKey,
+                  },
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                  placeholder: (context, url) => Center(
+                    child: CircularProgressIndicator(color: muscleColor, strokeWidth: 2),
+                  ),
+                  errorWidget: (context, url, error) => Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(muscleIcon, size: 70, color: muscleColor.withOpacity(0.8)),
+                        const SizedBox(height: 8),
+                        Text(
+                          "No demonstration available",
+                          style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           Positioned(
             top: 16,
             left: 16,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: muscleColor.withOpacity(0.2),
+                color: Colors.black.withOpacity(0.55),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: muscleColor.withOpacity(0.5)),
+                border: Border.all(color: muscleColor.withOpacity(0.6)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.local_fire_department,
-                    color: muscleColor,
-                    size: 16,
-                  ),
+                  Icon(Icons.local_fire_department, color: muscleColor, size: 16),
                   const SizedBox(width: 6),
                   Text(
                     "Target: $muscle",
-                    style: TextStyle(
-                      color: muscleColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+                    style: PUI.text(size: 12, weight: FontWeight.w700, color: muscleColor),
                   ),
                 ],
               ),
             ),
           ),
-
-          // 3D Model Placeholder
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(muscleIcon, size: 80, color: muscleColor.withOpacity(0.8)),
-                const SizedBox(height: 8),
-                Text(
-                  "3D Form Demonstration",
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Play Button Overlay
-          Center(
-            child: Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: muscleColor.withOpacity(0.9),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: muscleColor.withOpacity(0.5),
-                    blurRadius: 15,
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.play_arrow,
-                color: Colors.white,
-                size: 36,
-              ),
-            ),
-          ),
-
-          // Mock Video Progress Bar
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [Colors.black.withOpacity(0.8), Colors.transparent],
-                ),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
-              ),
-              child: Row(
+          if (!hasGif)
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    Icons.play_circle_outline,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: 0.3,
-                        minHeight: 4,
-                        backgroundColor: Colors.white.withOpacity(0.2),
-                        valueColor: AlwaysStoppedAnimation<Color>(muscleColor),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    "0:12 / 0:45",
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  Icon(muscleIcon, size: 80, color: muscleColor.withOpacity(0.8)),
+                  const SizedBox(height: 8),
+                  Text(
+                    "3D Form Demonstration",
+                    style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5)),
                   ),
                 ],
               ),
             ),
-          ),
         ],
       ),
     );
   }
 
   Widget _buildStatCard(String value, String label, IconData icon) {
-    return Container(
+    return Glass(
+      radius: 16,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E3F),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: muscleColor.withOpacity(0.3), width: 1),
-      ),
       child: Column(
         children: [
           Icon(icon, color: muscleColor, size: 22),
           const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
+          GradientText(value, size: 18, colors: [Colors.white, muscleColor]),
           const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.6),
-              fontSize: 12,
-            ),
-          ),
+          Text(label, style: PUI.text(size: 12, color: Colors.white.withOpacity(0.6))),
         ],
       ),
     );
   }
 
-  Widget _buildTipCard(
-    String title,
-    String description,
-    IconData icon,
-    Color color,
-  ) {
-    return Container(
+  Widget _buildTipCard(String title, String description, IconData icon, Color color) {
+    return Glass(
+      radius: 16,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E3F),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3), width: 1),
-      ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
+              color: color.withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 22),
@@ -671,22 +559,9 @@ class ExerciseDetailScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text(title, style: PUI.text(size: 15, weight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
-                    fontSize: 13,
-                  ),
-                ),
+                Text(description, style: PUI.text(size: 13, color: Colors.white.withOpacity(0.6))),
               ],
             ),
           ),
@@ -696,17 +571,15 @@ class ExerciseDetailScreen extends StatelessWidget {
   }
 }
 
-// Paints the subtle 3D grid background
 class _GridPainter extends CustomPainter {
   final Color color;
   _GridPainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = color
-          ..strokeWidth = 1;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
     const spacing = 20.0;
     for (double i = 0; i < size.width; i += spacing) {
       canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
