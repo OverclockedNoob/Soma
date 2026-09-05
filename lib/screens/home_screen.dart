@@ -800,25 +800,26 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _spendCoinAndFreeze(String dateStr) async {
+  // FIX 5: Made async + added mounted check after awaits
+  Future<void> _spendCoinAndFreeze(String dateStr) async {
     final success = await SettingsStorage.spendRecoveryCoin();
-    if (success) {
-      await SettingsStorage.freezeDate(dateStr);
-      Navigator.pop(context);
-      setState(() => recoveryCoins = SettingsStorage.getRecoveryCoins());
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(children: [
-            Icon(Icons.ac_unit, color: Colors.white),
-            SizedBox(width: 8),
-            Text("Streak frozen for today! ❄️"),
-          ]),
-          backgroundColor: _kPrimary,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-    }
+    if (!success) return;
+    await SettingsStorage.freezeDate(dateStr);
+    if (!mounted) return;
+    Navigator.pop(context);
+    setState(() => recoveryCoins = SettingsStorage.getRecoveryCoins());
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(children: [
+          Icon(Icons.ac_unit, color: Colors.white),
+          SizedBox(width: 8),
+          Text("Streak frozen for today! ❄️"),
+        ]),
+        backgroundColor: _kPrimary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 }
 

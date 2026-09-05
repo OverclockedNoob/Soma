@@ -24,16 +24,28 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   int elapsedSeconds = 0;
   DateTime? workoutStartTime;
 
+  /// Safe int parser — handles String, int, double, null
+  static int _asInt(dynamic v, int fallback) =>
+      v is num ? v.toInt() : int.tryParse('$v') ?? fallback;
+
   @override
   void initState() {
     super.initState();
-    exercises =
-        widget.customExercises ??
-        [
-          {"name": "Push-ups", "muscle": "Chest", "sets": 3, "targetReps": 12},
-          {"name": "Squats", "muscle": "Legs", "sets": 4, "targetReps": 10},
-          {"name": "Plank", "muscle": "Core", "sets": 3, "targetReps": 30},
-        ];
+    
+    // FIX 3: Deep copy + normalize types to prevent mutation and type crashes
+    const defaults = [
+      {"name": "Push-ups", "muscle": "Chest", "sets": 3, "targetReps": 12},
+      {"name": "Squats", "muscle": "Legs", "sets": 4, "targetReps": 10},
+      {"name": "Plank", "muscle": "Core", "sets": 3, "targetReps": 30},
+    ];
+    exercises = (widget.customExercises ?? defaults).map((e) {
+      final m = Map<String, dynamic>.from(e);
+      m["name"] = m["name"]?.toString() ?? "Exercise";
+      m["sets"] = _asInt(m["sets"], 3);
+      m["targetReps"] = _asInt(m["targetReps"], 10);
+      return m;
+    }).toList();
+    
     workoutStartTime = DateTime.now();
     _startStopwatch();
   }
@@ -147,7 +159,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     }
   }
 
-  void _finishWorkout() {
+  // FIX 4: Made async + awaited persistence + error handling
+  Future<void> _finishWorkout() async {
     _stopwatchTimer?.cancel();
     final duration = DateTime.now().difference(workoutStartTime!);
     final now = DateTime.now();
@@ -173,7 +186,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     final estimatedCalories =
         (duration.inMinutes * 6) + (finalCompletedSets.length * 3);
 
-    WorkoutStorage.saveWorkout({
+    // FIX 4: Await the save and check result
+    final saved = await WorkoutStorage.saveWorkout({
       "date": dateStr,
       "durationMinutes": duration.inMinutes,
       "calories": estimatedCalories,
@@ -183,8 +197,16 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
       "sets": finalCompletedSets,
     });
 
-    // 🛡️ REWARD ENGINE: Give them 1 Recovery Coin for finishing a workout!
-    SettingsStorage.addRecoveryCoins(1);
+    // FIX 4: Only award coins if save succeeded
+    if (saved) await SettingsStorage.addRecoveryCoins(1);
+    if (!mounted) return;
+
+    // FIX 4: Show error if save failed
+    if (!saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't save workout — check storage.")),
+      );
+    }
 
     Navigator.pushReplacement(
       context,

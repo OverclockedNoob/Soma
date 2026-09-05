@@ -146,6 +146,16 @@ class ExerciseDbService {
     return DateTime.now().difference(fetched).inDays >= 7;
   }
 
+  /// Safe page fetch with 15s timeout + type guard
+  static Future<List<dynamic>?> _getPage(Uri uri) async {
+    final res = await http
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    if (res.statusCode != 200) return null;
+    final decoded = jsonDecode(res.body);
+    return decoded is List ? decoded : null;
+  }
+
   /// Strategy 1: paginate the BASE endpoint (biggest source)
   static Future<List<ExerciseDbExercise>> _fetchBasePaginated() async {
     final seen = <String, ExerciseDbExercise>{};
@@ -159,11 +169,8 @@ class ExerciseDbService {
         {'limit': '$pageSize', 'offset': '${page * pageSize}'},
       );
 
-      final res = await http.get(uri, headers: _headers);
-      if (res.statusCode != 200) break;
-
-      final List<dynamic> data = jsonDecode(res.body);
-      if (data.isEmpty) break;
+      final data = await _getPage(uri);
+      if (data == null || data.isEmpty) break;
 
       // 🕵️ ONE-TIME truth print: the API's actual field names
       if (!_printedKeys) {
@@ -208,11 +215,8 @@ class ExerciseDbService {
           {'limit': '$pageSize', 'offset': '${page * pageSize}'},
         );
 
-        final res = await http.get(uri, headers: _headers);
-        if (res.statusCode != 200) break;
-
-        final List<dynamic> data = jsonDecode(res.body);
-        if (data.isEmpty) break;
+        final data = await _getPage(uri);
+        if (data == null || data.isEmpty) break;
 
         int newCount = 0;
         for (final e in data) {
@@ -247,7 +251,11 @@ class ExerciseDbService {
     }
 
     if (result.isEmpty) {
-      result = await _fetchByBodyPart();
+      try {
+        result = await _fetchByBodyPart();
+      } catch (e) {
+        debugPrint('❌ BodyPart fetch error: $e');
+      }
     }
 
     if (result.isEmpty) {
@@ -255,7 +263,7 @@ class ExerciseDbService {
     }
 
     final uniqueMap = {for (var ex in result) ex.id: ex};
-final uniqueList = uniqueMap.values.toList();
+    final uniqueList = uniqueMap.values.toList();
     await _box.put(_dataKey, jsonEncode(uniqueList.map((e) => e.toJson()).toList()));
     await _box.put(_timeKey, DateTime.now().millisecondsSinceEpoch);
     _memoryCache = uniqueList;

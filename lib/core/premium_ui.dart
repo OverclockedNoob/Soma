@@ -316,8 +316,11 @@ class PremiumScaffold extends StatelessWidget {
           : AppBar(
               backgroundColor: Colors.transparent,
               elevation: 0,
-              leadingWidth: 64,
-              leading: Padding(
+              automaticallyImplyLeading: false,
+              leadingWidth: Navigator.canPop(context) ? 64 : 0,
+              leading: !Navigator.canPop(context)
+                  ? null
+                  : Padding(
                 padding: const EdgeInsets.all(10),
                 child: Pressable(
                   onTap: () => Navigator.pop(context),
