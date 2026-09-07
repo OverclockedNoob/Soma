@@ -26,8 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int recoveryCoins = 0;
   List<double> weeklyData = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
   int weeklyWorkoutCount = 0;
-  String _userName = 'Mitesh';
-
+  String _userName = 'Champion';
   Map<String, dynamic>? _activeProgram;
   String? _todaysWorkoutName;
   List<Map<String, dynamic>>? _todaysExercises;

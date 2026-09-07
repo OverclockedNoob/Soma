@@ -115,8 +115,8 @@ class SettingsStorage {
       _box.get('notifications', defaultValue: true) as bool;
   static bool getSoundEffects() =>
       _box.get('soundEffects', defaultValue: true) as bool;
-  static String getUserName() =>
-      _box.get('userName', defaultValue: 'Mitesh') as String;
+    static String getUserName() =>
+      _box.get('userName', defaultValue: 'Champion') as String;
   static String getUserTitle() =>
       _box.get('userTitle', defaultValue: 'Fitness Enthusiast') as String;
 

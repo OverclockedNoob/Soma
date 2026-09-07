@@ -31,7 +31,7 @@ class WorkoutApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Workout Tracker',
+      title: 'Soma',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: PUI.primary,

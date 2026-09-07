@@ -18,39 +18,50 @@ class VibeCheckSheet extends StatefulWidget {
 }
 
 class _VibeCheckSheetState extends State<VibeCheckSheet> {
-  double _sleep = 7;
-  double _stress = 3;
-  double _soreness = 2;
+  // ── THE RECEIPTS (concrete, factual, hard to fake) ──
+  int _sleepIdx = 2;      // default: 7-8h
+  int _sorenessIdx = 1;   // default: light soreness
+  int _motivationIdx = 0; // default: let's go
 
-  String get _overallStatus {
-    if (_sleep < 4 || _soreness > 7 || _stress > 7) return "Take It Easy 😓";
-    if (_sleep >= 7 && _soreness <= 4 && _stress <= 4) return "Crush It! 🔥";
-    return "Normal Pace 🙂";
+  static const _sleepOptions = ['< 5h', '5-6h', '7-8h', '8h+'];
+  static const _sorenessOptions = ['Fresh', 'Light', 'Very', 'Destroyed'];
+  static const _motivationOptions = ["Let's go!", 'Normal', 'Meh', 'Not really'];
+
+  // scoring: lower = more ready
+  int get _readinessScore {
+    final sleepScore = [3, 2, 0, -1][_sleepIdx];
+    final sorenessScore = [0, 1, 2, 3][_sorenessIdx];
+    final motivationScore = [0, 1, 2, 3][_motivationIdx];
+    return sleepScore + sorenessScore + motivationScore;
   }
 
-  // 🎨 MAPPED TO PUI PALETTE
+  String get _overallStatus {
+    final s = _readinessScore;
+    if (s <= 1) return "Crush It! 🔥";
+    if (s <= 4) return "Normal Pace 🙂";
+    return "Take It Easy 😓";
+  }
+
   Color get _statusColor {
-    if (_overallStatus.contains("Easy")) return PUI.pink;
     if (_overallStatus.contains("Crush")) return PUI.mint;
+    if (_overallStatus.contains("Easy")) return PUI.pink;
     return PUI.amber;
   }
 
   void _startWorkout() {
-    // Deep copy exercises so we don't mutate the actual database objects
     final adjustedExercises =
         widget.originalExercises.map((ex) => Map<String, dynamic>.from(ex)).toList();
 
     double multiplier = 1.0;
-    if (_overallStatus.contains("Easy")) multiplier = 0.8; // Reduce reps by 20%
-    if (_overallStatus.contains("Crush")) multiplier = 1.1; // Boost reps by 10%
+    if (_overallStatus.contains("Easy")) multiplier = 0.8;
+    if (_overallStatus.contains("Crush")) multiplier = 1.1;
 
     for (var ex in adjustedExercises) {
       int target = (ex['targetReps'] ?? 10) as int;
       ex['targetReps'] = (target * multiplier).round();
     }
 
-    Navigator.pop(context); // Close sheet
-
+    Navigator.pop(context);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -75,7 +86,6 @@ class _VibeCheckSheetState extends State<VibeCheckSheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ── DRAG HANDLE ────────────────────────────────
               Container(
                 width: 40,
                 height: 4,
@@ -86,17 +96,15 @@ class _VibeCheckSheetState extends State<VibeCheckSheet> {
               ),
               const SizedBox(height: 24),
 
-              // ── HEADER ─────────────────────────────────────
               GradientText("The Vibe Check", size: 24, weight: FontWeight.w900),
               const SizedBox(height: 8),
               Text(
-                "How is your body feeling for ${widget.workoutName}?",
+                "3 quick receipts before ${widget.workoutName}",
                 style: PUI.text(size: 14, color: Colors.white.withOpacity(0.6)),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
 
-              // ── STATUS PILL ────────────────────────────────
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -113,17 +121,35 @@ class _VibeCheckSheetState extends State<VibeCheckSheet> {
                   style: PUI.text(color: _statusColor, weight: FontWeight.w800, size: 16),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
-              // ── SLIDERS ────────────────────────────────────
-              _buildSlider("Sleep Quality 😴", _sleep, PUI.primary, (val) => setState(() => _sleep = val)),
-              const SizedBox(height: 24),
-              _buildSlider("Stress Level 🤯", _stress, PUI.amber, (val) => setState(() => _stress = val)),
-              const SizedBox(height: 24),
-              _buildSlider("Muscle Soreness 🤕", _soreness, PUI.pink, (val) => setState(() => _soreness = val)),
-              const SizedBox(height: 36),
+              _buildQuestion(
+                "😴 Hours of sleep last night?",
+                _sleepOptions,
+                _sleepIdx,
+                (i) => setState(() => _sleepIdx = i),
+                PUI.primary,
+              ),
+              const SizedBox(height: 20),
 
-              // ── START BUTTON ───────────────────────────────
+              _buildQuestion(
+                "🤕 How sore are you today?",
+                _sorenessOptions,
+                _sorenessIdx,
+                (i) => setState(() => _sorenessIdx = i),
+                PUI.pink,
+              ),
+              const SizedBox(height: 20),
+
+              _buildQuestion(
+                "⚡ Feeling like training right now?",
+                _motivationOptions,
+                _motivationIdx,
+                (i) => setState(() => _motivationIdx = i),
+                PUI.amber,
+              ),
+              const SizedBox(height: 28),
+
               Pressable(
                 onTap: _startWorkout,
                 child: AnimatedContainer(
@@ -163,50 +189,52 @@ class _VibeCheckSheetState extends State<VibeCheckSheet> {
     );
   }
 
-  Widget _buildSlider(
+  Widget _buildQuestion(
     String title,
-    double value,
-    Color color,
-    ValueChanged<double> onChanged,
+    List<String> options,
+    int selected,
+    ValueChanged<int> onTap,
+    Color accent,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(title, style: PUI.text(size: 14, weight: FontWeight.w700)),
+        const SizedBox(height: 10),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(title, style: PUI.text(size: 15, weight: FontWeight.w700)),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(10),
+          children: List.generate(options.length, (i) {
+            final isSelected = i == selected;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Pressable(
+                  onTap: () => onTap(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? accent.withOpacity(0.25) : Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected ? accent : Colors.white.withOpacity(0.1),
+                        width: isSelected ? 2 : 1,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        options[i],
+                        style: PUI.text(
+                          size: 12,
+                          weight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                          color: isSelected ? Colors.white : Colors.white.withOpacity(0.6),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              child: Text(
-                "${value.toInt()}/10",
-                style: PUI.text(color: color, size: 14, weight: FontWeight.w800),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        SliderTheme(
-          data: SliderThemeData(
-            trackHeight: 8,
-            activeTrackColor: color,
-            inactiveTrackColor: Colors.white.withOpacity(0.05),
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
-            thumbColor: color,
-            overlayColor: color.withOpacity(0.15),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
-          ),
-          child: Slider(
-            value: value,
-            min: 1,
-            max: 10,
-            divisions: 9,
-            onChanged: onChanged,
-          ),
+            );
+          }),
         ),
       ],
     );
