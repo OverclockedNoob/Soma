@@ -1,4 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:workout_tracker/services/storage_services.dart';
 import '../core/premium_ui.dart';
 
@@ -30,6 +33,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _userTitle = SettingsStorage.getUserTitle();
       _recoveryCoins = SettingsStorage.getRecoveryCoins();
     });
+  }
+
+  // 🆕 QUEST 4: EXPORT BACKUP
+  Future<void> _exportBackup() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final dateStr = DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
+      final file = File('${dir.path}/Soma_Backup_$dateStr.json');
+
+      final backupData = {
+        'workouts': WorkoutStorage.getAllWorkouts(),
+        'programs': ProgramStorage.getAllPrograms(),
+        'customWorkouts': CustomWorkoutStorage.getAllCustomWorkouts(),
+        'settings': {
+          'userName': SettingsStorage.getUserName(),
+          'userTitle': SettingsStorage.getUserTitle(),
+          'notifications': SettingsStorage.getNotifications(),
+          'soundEffects': SettingsStorage.getSoundEffects(),
+          'recoveryCoins': SettingsStorage.getRecoveryCoins(),
+          'frozenDates': SettingsStorage.getFrozenDates(),
+        }
+      };
+
+      await file.writeAsString(jsonEncode(backupData));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "Backup saved to Documents!",
+                    style: PUI.text(weight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: PUI.mint,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: PUI.flame),
+        );
+      }
+    }
   }
 
   void _showEditProfileDialog() {
@@ -141,7 +197,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 24),
 
-            // ── Profile Card ────────────────────────────────────
+            // ── Profile Card (QUEST 2 IS HERE) ────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Pressable(
@@ -282,6 +338,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: SectionTitle("Data Management"),
             ),
             const SizedBox(height: 12),
+            
+            // 🆕 EXPORT BACKUP BUTTON
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: _buildSettingItem(
+                "Export Backup",
+                Icons.cloud_upload_outlined,
+                PUI.mint,
+                onTap: _exportBackup,
+              ),
+            ),
+            const SizedBox(height: 12),
+
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: _buildSettingItem(
