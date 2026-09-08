@@ -122,8 +122,9 @@ class ExerciseDetailScreen extends StatelessWidget {
   }
 
   // 🆕 QUEST C: ADD TO WORKOUT LOGIC
-  void _showAddToWorkoutSheet(BuildContext context) async {
-    final workouts = CustomWorkoutStorage.getAllCustomWorkouts();
+    void _showAddToWorkoutSheet(BuildContext context) async {
+    final rawWorkouts = CustomWorkoutStorage.getAllCustomWorkouts();
+    final workouts = rawWorkouts.map((w) => Map<String, dynamic>.from(w as Map)).toList();
 
     showModalBottomSheet(
       context: context,
@@ -150,7 +151,7 @@ class ExerciseDetailScreen extends StatelessWidget {
                Center(child: Text("No custom workouts yet. Create one!", style: PUI.text(color: Colors.white.withOpacity(0.5))))
             else
                ConstrainedBox(
-                 constraints: BoxConstraints(maxHeight: 300),
+                 constraints: const BoxConstraints(maxHeight: 300),
                  child: ListView.builder(
                    shrinkWrap: true,
                    itemCount: workouts.length,
@@ -158,7 +159,12 @@ class ExerciseDetailScreen extends StatelessWidget {
                      final w = workouts[i];
                      return Pressable(
                        onTap: () {
-                         final exercises = List<Map<String, dynamic>>.from(w['exercises'] ?? []);
+                         final rawExercises = w['exercises'] as List? ?? [];
+                         // 🛡️ THE FIX: Translate wild Hive maps into typed maps
+                         final exercises = rawExercises
+                             .map((e) => Map<String, dynamic>.from(e as Map))
+                             .toList();
+                             
                          exercises.add({
                            'name': name,
                            'muscle': muscle,
@@ -183,10 +189,10 @@ class ExerciseDetailScreen extends StatelessWidget {
                          ),
                          child: Row(
                            children: [
-                             Icon(Icons.fitness_center, color: PUI.primary),
+                             const Icon(Icons.fitness_center, color: PUI.primary),
                              const SizedBox(width: 12),
-                             Expanded(child: Text(w['name'] as String, style: PUI.text(weight: FontWeight.w700))),
-                             Icon(Icons.add_circle_outline, color: PUI.mint),
+                             Expanded(child: Text(w['name'] as String? ?? '', style: PUI.text(weight: FontWeight.w700))),
+                             const Icon(Icons.add_circle_outline, color: PUI.mint),
                            ],
                          ),
                        ),
@@ -200,8 +206,8 @@ class ExerciseDetailScreen extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pop(context); // Close sheet
-                  _createNewWorkoutWithExercise(context); // Open create dialog
+                  Navigator.pop(context); 
+                  _createNewWorkoutWithExercise(context); 
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: PUI.primary,

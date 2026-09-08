@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'my_workouts_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:workout_tracker/services/storage_services.dart';
@@ -559,7 +560,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildQuickActions() {
+    Widget _buildQuickActions() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Column(
@@ -575,6 +576,56 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 14),
+          
+          // 🆕 MY WORKOUTS VAULT (Full Width Premium Card)
+          Pressable(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MyWorkoutsScreen()),
+              ).then((_) => _loadData()); // Refreshes home when you come back
+            },
+            child: Glass(
+              radius: 22,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [PUI.primary.withOpacity(0.35), PUI.primary.withOpacity(0.1)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.folder_outlined, color: PUI.primary, size: 20),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "My Workouts",
+                            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            "View your custom routines",
+                            style: GoogleFonts.outfit(fontSize: 12, color: Colors.white.withOpacity(0.5)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white.withOpacity(0.4)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
           Row(
             children: [
               _buildActionCard("Start Workout", Icons.play_circle_fill, PUI.primary,

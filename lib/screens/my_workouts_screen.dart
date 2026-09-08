@@ -21,7 +21,11 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
 
   void _loadWorkouts() {
     setState(() {
-      _workouts = CustomWorkoutStorage.getAllCustomWorkouts();
+      // 🛡️ HIVE SHIELD: Safely cast the list and the maps inside it
+      final rawWorkouts = CustomWorkoutStorage.getAllCustomWorkouts();
+      _workouts = rawWorkouts
+          .map((w) => Map<String, dynamic>.from(w as Map))
+          .toList();
     });
   }
 
@@ -48,7 +52,8 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
               itemCount: _workouts.length,
               itemBuilder: (context, i) {
                 final w = _workouts[i];
-                final exercises = w['exercises'] as List<dynamic>? ?? [];
+                final rawExercises = w['exercises'] as List? ?? [];
+                
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Pressable(
@@ -57,7 +62,10 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => ActiveWorkoutScreen(
-                            customExercises: List<Map<String, dynamic>>.from(exercises),
+                            // 🛡️ THE FIX: Translate wild Hive maps into typed maps
+                            customExercises: rawExercises
+                                .map((e) => Map<String, dynamic>.from(e as Map))
+                                .toList(),
                           ),
                         ),
                       ).then((_) => _loadWorkouts());
@@ -69,12 +77,12 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            w['name'] as String,
+                            w['name'] as String? ?? 'Untitled',
                             style: PUI.text(size: 20, weight: FontWeight.w800),
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            "${exercises.length} exercise${exercises.length == 1 ? '' : 's'}",
+                            "${rawExercises.length} exercise${rawExercises.length == 1 ? '' : 's'}",
                             style: PUI.text(size: 14, color: PUI.primary, weight: FontWeight.w600),
                           ),
                           const SizedBox(height: 16),
@@ -82,7 +90,8 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
                             spacing: 8,
                             runSpacing: 8,
                             children: [
-                              ...exercises.take(3).map((ex) {
+                              ...rawExercises.take(3).map((ex) {
+                                final exMap = Map<String, dynamic>.from(ex as Map);
                                 return Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
@@ -90,12 +99,12 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    ex['name'] as String,
+                                    exMap['name'] as String? ?? '',
                                     style: PUI.text(size: 12, weight: FontWeight.w600),
                                   ),
                                 );
                               }),
-                              if (exercises.length > 3)
+                              if (rawExercises.length > 3)
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
@@ -103,7 +112,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    "+${exercises.length - 3} more",
+                                    "+${rawExercises.length - 3} more",
                                     style: PUI.text(size: 12, weight: FontWeight.w700, color: PUI.primary),
                                   ),
                                 ),
