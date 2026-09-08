@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:workout_tracker/data/exercise_data.dart';
 import 'package:workout_tracker/services/exercisedb_service.dart';
+import 'package:workout_tracker/services/storage_services.dart'; // 🆕 IMPORTED
 import '../config/api_keys.dart';
 import '../core/premium_ui.dart';
 import 'active_workout_screen.dart';
@@ -23,7 +24,6 @@ class ExerciseDetailScreen extends StatelessWidget {
   IconData get difficultyIcon => ExerciseData.getDifficultyIcon(difficulty);
   Color get difficultyColor => ExerciseData.getDifficultyColor(difficulty);
 
-  // ── READ API DATA DIRECTLY FROM THE SERVICE CACHE ───────────
   ExerciseDbExercise? get _apiExercise {
     try {
       return ExerciseDbService.getCached().firstWhere((e) => e.name == name);
@@ -89,33 +89,13 @@ class ExerciseDetailScreen extends StatelessWidget {
 
   List<Map<String, dynamic>> get proTips {
     return [
-      {
-        'title': 'Focus on Form',
-        'description': 'Quality over quantity - maintain proper form',
-        'icon': Icons.check_circle,
-        'color': PUI.mint,
-      },
-      {
-        'title': 'Breathe Right',
-        'description': 'Exhale on exertion, inhale on release',
-        'icon': Icons.air,
-        'color': PUI.primary,
-      },
-      {
-        'title': 'Stay Hydrated',
-        'description': 'Drink water before, during, and after',
-        'icon': Icons.water_drop,
-        'color': PUI.amber,
-      },
+      {'title': 'Focus on Form', 'description': 'Quality over quantity - maintain proper form', 'icon': Icons.check_circle, 'color': PUI.mint},
+      {'title': 'Breathe Right', 'description': 'Exhale on exertion, inhale on release', 'icon': Icons.air, 'color': PUI.primary},
+      {'title': 'Stay Hydrated', 'description': 'Drink water before, during, and after', 'icon': Icons.water_drop, 'color': PUI.amber},
     ];
   }
 
-  Map<String, List<String>> get musclesWorked {
-    return {
-      'Primary': [muscle],
-      'Secondary': ['Core'],
-    };
-  }
+  Map<String, List<String>> get musclesWorked => {'Primary': [muscle], 'Secondary': ['Core']};
 
   void _showComingSoon(BuildContext context, String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -128,24 +108,155 @@ class ExerciseDetailScreen extends StatelessWidget {
     );
   }
 
-  // 🎯 REAL QUICK START: launches a 1-exercise workout right now
   void _quickStart(BuildContext context) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ActiveWorkoutScreen(
           customExercises: [
-            {
-              'name': name,
-              'muscle': muscle,
-              'difficulty': difficulty,
-              'sets': 3,
-              'targetReps': 10,
-            },
+            {'name': name, 'muscle': muscle, 'difficulty': difficulty, 'sets': 3, 'targetReps': 10},
           ],
         ),
       ),
     );
+  }
+
+  // 🆕 QUEST C: ADD TO WORKOUT LOGIC
+  void _showAddToWorkoutSheet(BuildContext context) async {
+    final workouts = CustomWorkoutStorage.getAllCustomWorkouts();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: PUI.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+            ),
+            const SizedBox(height: 24),
+            Text("Add to Workout", style: PUI.text(size: 22, weight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Text("Where do you want to put $name?", style: PUI.text(size: 14, color: Colors.white.withOpacity(0.6))),
+            const SizedBox(height: 24),
+            
+            if (workouts.isEmpty)
+               Center(child: Text("No custom workouts yet. Create one!", style: PUI.text(color: Colors.white.withOpacity(0.5))))
+            else
+               ConstrainedBox(
+                 constraints: BoxConstraints(maxHeight: 300),
+                 child: ListView.builder(
+                   shrinkWrap: true,
+                   itemCount: workouts.length,
+                   itemBuilder: (context, i) {
+                     final w = workouts[i];
+                     return Pressable(
+                       onTap: () {
+                         final exercises = List<Map<String, dynamic>>.from(w['exercises'] ?? []);
+                         exercises.add({
+                           'name': name,
+                           'muscle': muscle,
+                           'difficulty': difficulty,
+                           'sets': 3,
+                           'targetReps': 10,
+                         });
+                         w['exercises'] = exercises;
+                         CustomWorkoutStorage.saveCustomWorkout(w);
+                         Navigator.pop(context);
+                         ScaffoldMessenger.of(context).showSnackBar(
+                           SnackBar(content: Text("Added to ${w['name']}!"), backgroundColor: PUI.mint),
+                         );
+                       },
+                       child: Container(
+                         margin: const EdgeInsets.only(bottom: 10),
+                         padding: const EdgeInsets.all(16),
+                         decoration: BoxDecoration(
+                           color: Colors.white.withOpacity(0.05),
+                           borderRadius: BorderRadius.circular(16),
+                           border: Border.all(color: Colors.white.withOpacity(0.1)),
+                         ),
+                         child: Row(
+                           children: [
+                             Icon(Icons.fitness_center, color: PUI.primary),
+                             const SizedBox(width: 12),
+                             Expanded(child: Text(w['name'] as String, style: PUI.text(weight: FontWeight.w700))),
+                             Icon(Icons.add_circle_outline, color: PUI.mint),
+                           ],
+                         ),
+                       ),
+                     );
+                   },
+                 ),
+               ),
+            
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context); // Close sheet
+                  _createNewWorkoutWithExercise(context); // Open create dialog
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: PUI.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                icon: const Icon(Icons.add),
+                label: Text("Create New Workout", style: PUI.text(weight: FontWeight.w700)),
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(context).padding.bottom),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _createNewWorkoutWithExercise(BuildContext context) async {
+    final controller = TextEditingController();
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: PUI.surface,
+        title: Text("New Workout", style: PUI.text(weight: FontWeight.w700)),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(hintText: "e.g. Push Day", hintStyle: PUI.text(color: Colors.white38)),
+          style: PUI.text(),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text("Cancel", style: PUI.text(color: Colors.white54))),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            style: ElevatedButton.styleFrom(backgroundColor: PUI.primary),
+            child: Text("Create", style: PUI.text(weight: FontWeight.w700)),
+          )
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty) {
+      final newWorkout = {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'name': newName,
+        'exercises': [
+          {'name': name, 'muscle': muscle, 'difficulty': difficulty, 'sets': 3, 'targetReps': 10}
+        ],
+      };
+      CustomWorkoutStorage.saveCustomWorkout(newWorkout);
+      if (context.mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text("Created '$newName' with $name!"), backgroundColor: PUI.mint),
+         );
+      }
+    }
   }
 
   @override
@@ -166,10 +277,7 @@ class ExerciseDetailScreen extends StatelessWidget {
             children: [
               Icon(difficultyIcon, color: difficultyColor, size: 14),
               const SizedBox(width: 6),
-              Text(
-                difficulty,
-                style: PUI.text(size: 12, weight: FontWeight.w700, color: difficultyColor),
-              ),
+              Text(difficulty, style: PUI.text(size: 12, weight: FontWeight.w700, color: difficultyColor)),
             ],
           ),
         ),
@@ -193,10 +301,8 @@ class ExerciseDetailScreen extends StatelessWidget {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        if (equipment != null && equipment!.isNotEmpty)
-                          _buildInfoChip(Icons.construction, _titleCase(equipment!)),
-                        if (target != null && target!.isNotEmpty)
-                          _buildInfoChip(Icons.track_changes, _titleCase(target!)),
+                        if (equipment != null && equipment!.isNotEmpty) _buildInfoChip(Icons.construction, _titleCase(equipment!)),
+                        if (target != null && target!.isNotEmpty) _buildInfoChip(Icons.track_changes, _titleCase(target!)),
                       ],
                     ),
                   const SizedBox(height: 20),
@@ -225,14 +331,7 @@ class ExerciseDetailScreen extends StatelessWidget {
                             children: [
                               SizedBox(
                                 width: 80,
-                                child: Text(
-                                  entry.key,
-                                  style: PUI.text(
-                                    size: 13,
-                                    weight: FontWeight.w700,
-                                    color: isPrimary ? muscleColor : Colors.white.withOpacity(0.4),
-                                  ),
-                                ),
+                                child: Text(entry.key, style: PUI.text(size: 13, weight: FontWeight.w700, color: isPrimary ? muscleColor : Colors.white.withOpacity(0.4))),
                               ),
                               Expanded(
                                 child: Wrap(
@@ -245,14 +344,7 @@ class ExerciseDetailScreen extends StatelessWidget {
                                         color: isPrimary ? muscleColor.withOpacity(0.2) : Colors.white.withOpacity(0.05),
                                         borderRadius: BorderRadius.circular(10),
                                       ),
-                                      child: Text(
-                                        m,
-                                        style: PUI.text(
-                                          size: 12,
-                                          weight: FontWeight.w600,
-                                          color: isPrimary ? muscleColor : Colors.white.withOpacity(0.4),
-                                        ),
-                                      ),
+                                      child: Text(m, style: PUI.text(size: 12, weight: FontWeight.w600, color: isPrimary ? muscleColor : Colors.white.withOpacity(0.4))),
                                     );
                                   }).toList(),
                                 ),
@@ -281,32 +373,19 @@ class ExerciseDetailScreen extends StatelessWidget {
                                     children: [
                                       Container(
                                         padding: const EdgeInsets.all(6),
-                                        decoration: BoxDecoration(
-                                          color: muscleColor.withOpacity(0.15),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          '${i + 1}',
-                                          style: PUI.text(size: 12, weight: FontWeight.w800, color: muscleColor),
-                                        ),
+                                        decoration: BoxDecoration(color: muscleColor.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+                                        child: Text('${i + 1}', style: PUI.text(size: 12, weight: FontWeight.w800, color: muscleColor)),
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
-                                        child: Text(
-                                          apiInstructions[i],
-                                          style: PUI.text(size: 14, color: Colors.white.withOpacity(0.8))
-                                              .copyWith(height: 1.5),
-                                        ),
+                                        child: Text(apiInstructions[i], style: PUI.text(size: 14, color: Colors.white.withOpacity(0.8)).copyWith(height: 1.5)),
                                       ),
                                     ],
                                   ),
                                 ),
                             ],
                           )
-                        : Text(
-                            instructions,
-                            style: PUI.text(size: 15, color: Colors.white.withOpacity(0.8)).copyWith(height: 1.6),
-                          ),
+                        : Text(instructions, style: PUI.text(size: 15, color: Colors.white.withOpacity(0.8)).copyWith(height: 1.6)),
                   ),
                   const SizedBox(height: 28),
                   const SectionTitle("Pro Tips"),
@@ -314,12 +393,7 @@ class ExerciseDetailScreen extends StatelessWidget {
                   ...proTips.map(
                     (tip) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildTipCard(
-                        tip['title'] as String,
-                        tip['description'] as String,
-                        tip['icon'] as IconData,
-                        tip['color'] as Color,
-                      ),
+                      child: _buildTipCard(tip['title'] as String, tip['description'] as String, tip['icon'] as IconData, tip['color'] as Color),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -347,10 +421,7 @@ class ExerciseDetailScreen extends StatelessWidget {
                           children: [
                             Icon(Icons.play_arrow, color: muscleColor, size: 20),
                             const SizedBox(width: 4),
-                            Text(
-                              "Quick Start",
-                              style: PUI.text(size: 14, weight: FontWeight.w800, color: muscleColor),
-                            ),
+                            Text("Quick Start", style: PUI.text(size: 14, weight: FontWeight.w800, color: muscleColor)),
                           ],
                         ),
                       ),
@@ -361,18 +432,15 @@ class ExerciseDetailScreen extends StatelessWidget {
                 Expanded(
                   flex: 2,
                   child: Pressable(
-                    onTap: () => _showComingSoon(context, 'Workout Builder'),
+                    // 🆕 WIRED UP!
+                    onTap: () => _showAddToWorkoutSheet(context),
                     child: Container(
                       height: 56,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(colors: [muscleColor, muscleColor.withOpacity(0.7)]),
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
-                          BoxShadow(
-                            color: muscleColor.withOpacity(0.4),
-                            blurRadius: 15,
-                            offset: const Offset(0, 8),
-                          ),
+                          BoxShadow(color: muscleColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8)),
                         ],
                       ),
                       child: Center(
@@ -381,10 +449,7 @@ class ExerciseDetailScreen extends StatelessWidget {
                           children: [
                             const Icon(Icons.add_circle, color: Colors.white),
                             const SizedBox(width: 8),
-                            Text(
-                              "Add to Workout",
-                              style: PUI.text(size: 15, weight: FontWeight.w800),
-                            ),
+                            Text("Add to Workout", style: PUI.text(size: 15, weight: FontWeight.w800)),
                           ],
                         ),
                       ),
@@ -399,8 +464,7 @@ class ExerciseDetailScreen extends StatelessWidget {
     );
   }
 
-  String _titleCase(String s) =>
-      s.split(' ').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ');
+  String _titleCase(String s) => s.split(' ').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ');
 
   Widget _buildInfoChip(IconData icon, String label) {
     return Container(
@@ -426,29 +490,17 @@ class ExerciseDetailScreen extends StatelessWidget {
       width: double.infinity,
       height: 240,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [PUI.surface, PUI.bg],
-        ),
+        gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [PUI.surface, PUI.bg]),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: muscleColor.withOpacity(0.3), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: muscleColor.withOpacity(0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: muscleColor.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))],
       ),
       child: Stack(
         children: [
           Positioned.fill(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: CustomPaint(
-                painter: _GridPainter(color: Colors.white.withOpacity(0.03)),
-              ),
+              child: CustomPaint(painter: _GridPainter(color: Colors.white.withOpacity(0.03))),
             ),
           ),
           if (hasGif)
@@ -457,25 +509,18 @@ class ExerciseDetailScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(24),
                 child: CachedNetworkImage(
                   imageUrl: gifUrl!,
-                  httpHeaders: const {
-                    'x-rapidapi-key': ApiKeys.exercisedbKey,
-                  },
+                  httpHeaders: const {'x-rapidapi-key': ApiKeys.exercisedbKey},
                   fit: BoxFit.cover,
                   width: double.infinity,
                   height: double.infinity,
-                  placeholder: (context, url) => Center(
-                    child: CircularProgressIndicator(color: muscleColor, strokeWidth: 2),
-                  ),
+                  placeholder: (context, url) => Center(child: CircularProgressIndicator(color: muscleColor, strokeWidth: 2)),
                   errorWidget: (context, url, error) => Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(muscleIcon, size: 70, color: muscleColor.withOpacity(0.8)),
                         const SizedBox(height: 8),
-                        Text(
-                          "No demonstration available",
-                          style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5)),
-                        ),
+                        Text("No demonstration available", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5))),
                       ],
                     ),
                   ),
@@ -497,10 +542,7 @@ class ExerciseDetailScreen extends StatelessWidget {
                 children: [
                   Icon(Icons.local_fire_department, color: muscleColor, size: 16),
                   const SizedBox(width: 6),
-                  Text(
-                    "Target: $muscle",
-                    style: PUI.text(size: 12, weight: FontWeight.w700, color: muscleColor),
-                  ),
+                  Text("Target: $muscle", style: PUI.text(size: 12, weight: FontWeight.w700, color: muscleColor)),
                 ],
               ),
             ),
@@ -512,10 +554,7 @@ class ExerciseDetailScreen extends StatelessWidget {
                 children: [
                   Icon(muscleIcon, size: 80, color: muscleColor.withOpacity(0.8)),
                   const SizedBox(height: 8),
-                  Text(
-                    "3D Form Demonstration",
-                    style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5)),
-                  ),
+                  Text("3D Form Demonstration", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5))),
                 ],
               ),
             ),
@@ -548,10 +587,7 @@ class ExerciseDetailScreen extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
+            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
             child: Icon(icon, color: color, size: 22),
           ),
           const SizedBox(width: 14),
@@ -574,21 +610,13 @@ class ExerciseDetailScreen extends StatelessWidget {
 class _GridPainter extends CustomPainter {
   final Color color;
   _GridPainter({required this.color});
-
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1;
+    final paint = Paint()..color = color..strokeWidth = 1;
     const spacing = 20.0;
-    for (double i = 0; i < size.width; i += spacing) {
-      canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
-    }
-    for (double i = 0; i < size.height; i += spacing) {
-      canvas.drawLine(Offset(0, i), Offset(size.width, i), paint);
-    }
+    for (double i = 0; i < size.width; i += spacing) canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
+    for (double i = 0; i < size.height; i += spacing) canvas.drawLine(Offset(0, i), Offset(size.width, i), paint);
   }
-
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
