@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import '../screens/active_workout_screen.dart';
 import '../core/premium_ui.dart';
 
+// Quick pre-workout check-in. Ask 3 questions, turn the answers into a
+// readiness score, and use that to nudge the workout's rep targets up or
+// down. Nothing scientific about the numbers below — just felt right
+// during testing. Adjust freely if it feels off in practice.
 class VibeCheckSheet extends StatefulWidget {
   final List<Map<String, dynamic>> originalExercises;
   final String workoutName;
@@ -17,17 +21,23 @@ class VibeCheckSheet extends StatefulWidget {
   State<VibeCheckSheet> createState() => _VibeCheckSheetState();
 }
 
+// Buckets the raw score into 3 tiers. Kept as an enum instead of matching
+// on the display string (used to do that — turned out to be fragile since
+// the display text has emoji baked in and any copy change would've quietly
+// broken the rep multiplier logic below).
+enum _Readiness { crushIt, normalPace, takeItEasy }
+
 class _VibeCheckSheetState extends State<VibeCheckSheet> {
-  // ── THE RECEIPTS (concrete, factual, hard to fake) ──
-  int _sleepIdx = 2;      // default: 7-8h
+  int _sleepIdx = 2;      // default: 7-8h, seems like a reasonable "average" starting point
   int _sorenessIdx = 1;   // default: light soreness
-  int _motivationIdx = 0; // default: let's go
+  int _motivationIdx = 0; // default: let's go — optimistic default, most people opening this are about to work out anyway
 
   static const _sleepOptions = ['< 5h', '5-6h', '7-8h', '8h+'];
   static const _sorenessOptions = ['Fresh', 'Light', 'Very', 'Destroyed'];
   static const _motivationOptions = ["Let's go!", 'Normal', 'Meh', 'Not really'];
 
-  // scoring: lower = more ready
+  // Lower score = more ready. Note 8h+ scores lower than 7-8h (-1 vs 0) —
+  // intentional, oversleeping a bit isn't really a red flag.
   int get _readinessScore {
     final sleepScore = [3, 2, 0, -1][_sleepIdx];
     final sorenessScore = [0, 1, 2, 3][_sorenessIdx];
@@ -35,33 +45,74 @@ class _VibeCheckSheetState extends State<VibeCheckSheet> {
     return sleepScore + sorenessScore + motivationScore;
   }
 
-  String get _overallStatus {
+  // Score range is roughly -1 to 9. Cutoffs picked by feel, not math.
+  _Readiness get _readinessLevel {
     final s = _readinessScore;
-    if (s <= 1) return "Crush It! 🔥";
-    if (s <= 4) return "Normal Pace 🙂";
-    return "Take It Easy 😓";
+    if (s <= 1) return _Readiness.crushIt;
+    if (s <= 4) return _Readiness.normalPace;
+    return _Readiness.takeItEasy;
+  }
+
+  String get _statusLabel {
+    switch (_readinessLevel) {
+      case _Readiness.crushIt:
+        return "Crush It! 🔥";
+      case _Readiness.normalPace:
+        return "Normal Pace 🙂";
+      case _Readiness.takeItEasy:
+        return "Take It Easy 😓";
+    }
   }
 
   Color get _statusColor {
-    if (_overallStatus.contains("Crush")) return PUI.mint;
-    if (_overallStatus.contains("Easy")) return PUI.pink;
-    return PUI.amber;
+    switch (_readinessLevel) {
+      case _Readiness.crushIt:
+        return PUI.mint;
+      case _Readiness.normalPace:
+        return PUI.amber;
+      case _Readiness.takeItEasy:
+        return PUI.pink;
+    }
+  }
+
+  // Drives the rep adjustment in _startWorkout(). Pulled out as its own
+  // getter so the multiplier values live next to the enum they're keyed
+  // off of, instead of buried in string checks inside a method.
+  double get _repMultiplier {
+    switch (_readinessLevel) {
+      case _Readiness.crushIt:
+        return 1.1;  // feeling great — push a bit harder
+      case _Readiness.normalPace:
+        return 1.0;
+      case _Readiness.takeItEasy:
+        return 0.8;  // tired/sore — back off 20%
+    }
   }
 
   void _startWorkout() {
     final adjustedExercises =
         widget.originalExercises.map((ex) => Map<String, dynamic>.from(ex)).toList();
 
-    double multiplier = 1.0;
-    if (_overallStatus.contains("Easy")) multiplier = 0.8;
-    if (_overallStatus.contains("Crush")) multiplier = 1.1;
+    // Guard: starting a "Quick Workout" with zero exercises selected used
+    // to crash ActiveWorkoutScreen (it indexes [0] on an empty list).
+    // Falling back to a basic full-body trio so there's always something
+    // to actually do instead of throwing a RangeError mid-flow.
+    if (adjustedExercises.isEmpty) {
+      adjustedExercises.addAll([
+        {'name': 'Push-ups', 'muscle': 'Chest', 'difficulty': 'Beginner', 'sets': 3, 'targetReps': 10},
+        {'name': 'Squats', 'muscle': 'Legs', 'difficulty': 'Beginner', 'sets': 3, 'targetReps': 12},
+        {'name': 'Plank', 'muscle': 'Core', 'difficulty': 'Beginner', 'sets': 3, 'targetReps': 30},
+      ]);
+    }
 
+    final multiplier = _repMultiplier;
     for (var ex in adjustedExercises) {
-      int target = (ex['targetReps'] ?? 10) as int;
+      final target = (ex['targetReps'] ?? 10) as int;
       ex['targetReps'] = (target * multiplier).round();
     }
 
-    Navigator.pop(context);
+    Navigator.pop(context); // close the sheet before pushing the next screen
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -72,6 +123,33 @@ class _VibeCheckSheetState extends State<VibeCheckSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // Config for the 3 questions — was three near-identical
+    // _buildQuestion(...) calls before, collapsed into a loop so adding a
+    // 4th question later doesn't mean copy-pasting another block.
+    final questions = [
+      (
+        title: "😴 Hours of sleep last night?",
+        options: _sleepOptions,
+        selected: _sleepIdx,
+        onTap: (int i) => setState(() => _sleepIdx = i),
+        accent: PUI.primary,
+      ),
+      (
+        title: "🤕 How sore are you today?",
+        options: _sorenessOptions,
+        selected: _sorenessIdx,
+        onTap: (int i) => setState(() => _sorenessIdx = i),
+        accent: PUI.pink,
+      ),
+      (
+        title: "⚡ Feeling like training right now?",
+        options: _motivationOptions,
+        selected: _motivationIdx,
+        onTap: (int i) => setState(() => _motivationIdx = i),
+        accent: PUI.amber,
+      ),
+    ];
+
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
       child: BackdropFilter(
@@ -113,42 +191,22 @@ class _VibeCheckSheetState extends State<VibeCheckSheet> {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: _statusColor.withOpacity(0.5)),
                   boxShadow: [
-                    BoxShadow(color: _statusColor.withOpacity(0.2), blurRadius: 12)
+                    BoxShadow(color: _statusColor.withOpacity(0.2), blurRadius: 12),
                   ],
                 ),
                 child: Text(
-                  _overallStatus,
+                  _statusLabel,
                   style: PUI.text(color: _statusColor, weight: FontWeight.w800, size: 16),
                 ),
               ),
               const SizedBox(height: 28),
 
-              _buildQuestion(
-                "😴 Hours of sleep last night?",
-                _sleepOptions,
-                _sleepIdx,
-                (i) => setState(() => _sleepIdx = i),
-                PUI.primary,
-              ),
-              const SizedBox(height: 20),
+              for (final q in questions) ...[
+                _buildQuestion(q.title, q.options, q.selected, q.onTap, q.accent),
+                const SizedBox(height: 20),
+              ],
 
-              _buildQuestion(
-                "🤕 How sore are you today?",
-                _sorenessOptions,
-                _sorenessIdx,
-                (i) => setState(() => _sorenessIdx = i),
-                PUI.pink,
-              ),
-              const SizedBox(height: 20),
-
-              _buildQuestion(
-                "⚡ Feeling like training right now?",
-                _motivationOptions,
-                _motivationIdx,
-                (i) => setState(() => _motivationIdx = i),
-                PUI.amber,
-              ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 8),
 
               Pressable(
                 onTap: _startWorkout,

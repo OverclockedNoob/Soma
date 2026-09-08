@@ -2,41 +2,38 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:workout_tracker/data/exercise_data.dart';
 import 'package:workout_tracker/services/exercisedb_service.dart';
-import 'package:workout_tracker/services/storage_services.dart'; // 🆕 IMPORTED
+import 'package:workout_tracker/services/storage_services.dart';
 import '../config/api_keys.dart';
 import '../core/premium_ui.dart';
 import 'active_workout_screen.dart';
 
+// Shows the details for a single exercise — GIF demo (if the API has one),
+// sets/reps/rest recommendations, muscles worked, form instructions, and
+// buttons to either quick-start it solo or add it into an existing/new
+// custom workout.
 class ExerciseDetailScreen extends StatelessWidget {
   final String name;
   final String muscle;
   final String difficulty;
 
-  const ExerciseDetailScreen({
-    super.key,
-    required this.name,
-    required this.muscle,
-    required this.difficulty,
-  });
+  const ExerciseDetailScreen({super.key, required this.name, required this.muscle, required this.difficulty});
 
   Color get muscleColor => ExerciseData.getMuscleColor(muscle);
   IconData get muscleIcon => ExerciseData.getMuscleIcon(muscle);
   IconData get difficultyIcon => ExerciseData.getDifficultyIcon(difficulty);
   Color get difficultyColor => ExerciseData.getDifficultyColor(difficulty);
 
+  // matching purely by name against the cached exercise list — works fine
+  // since names are unique in our dataset, but if that ever changes we'd
+  // want to pass an actual id into this screen instead
   ExerciseDbExercise? get _apiExercise {
-    try {
-      return ExerciseDbService.getCached().firstWhere((e) => e.name == name);
-    } catch (_) {
-      return null;
-    }
+    try { return ExerciseDbService.getCached().firstWhere((e) => e.name == name); } catch (_) { return null; }
   }
 
   String? get gifUrl => _apiExercise?.gifUrl;
   String? get equipment => _apiExercise?.equipment;
   String? get target => _apiExercise?.target;
   List<String> get apiInstructions => _apiExercise?.instructions ?? [];
-
   bool get hasGif => gifUrl != null && gifUrl!.isNotEmpty;
 
   String get recommendedSets {
@@ -51,42 +48,31 @@ class ExerciseDetailScreen extends StatelessWidget {
   String get recommendedReps {
     if (muscle == 'Cardio') return '30-60s';
     if (muscle == 'Core') {
-      switch (difficulty) {
-        case 'Beginner': return '20-30s';
-        case 'Intermediate': return '30-60s';
-        default: return '45-90s';
-      }
+      switch (difficulty) { case 'Beginner': return '20-30s'; case 'Intermediate': return '30-60s'; default: return '45-90s'; }
     }
-    switch (difficulty) {
-      case 'Beginner': return '10-15';
-      case 'Intermediate': return '8-12';
-      case 'Advanced': return '6-10';
-      default: return '8-12';
-    }
+    switch (difficulty) { case 'Beginner': return '10-15'; case 'Intermediate': return '8-12'; case 'Advanced': return '6-10'; default: return '8-12'; }
   }
 
   String get recommendedRest {
-    switch (difficulty) {
-      case 'Beginner': return '60s';
-      case 'Intermediate': return '45s';
-      case 'Advanced': return '30s';
-      default: return '60s';
-    }
+    switch (difficulty) { case 'Beginner': return '60s'; case 'Intermediate': return '45s'; case 'Advanced': return '30s'; default: return '60s'; }
   }
 
+  // TODO: this only has real hand-written steps for 3 exercises, everything
+  // else falls back to a generic "do the movement correctly" text. Ideally
+  // we'd pull this from the API instructions (see apiInstructions below)
+  // and only use this as a last resort — which is sort of what the UI
+  // already does, just flagging that this list should probably grow
   String get instructions {
     switch (name) {
-      case 'Push-ups':
-        return '1. Start in a plank position with hands slightly wider than shoulders.\n\n2. Keep your body in a straight line from head to heels.\n\n3. Lower your body until your chest nearly touches the floor.\n\n4. Push yourself back up to the starting position.\n\n5. Repeat for desired reps.';
-      case 'Squats':
-        return '1. Stand with feet shoulder-width apart, toes slightly out.\n\n2. Keep your chest up and core engaged.\n\n3. Lower your body by bending knees and pushing hips back.\n\n4. Go down until thighs are parallel to the floor.\n\n5. Push through your heels to return to standing.';
-      case 'Plank':
-        return '1. Start on your forearms and toes.\n\n2. Keep your body in a perfectly straight line.\n\n3. Engage your core and squeeze your glutes.\n\n4. Hold without letting hips sag or rise.\n\n5. Breathe steadily throughout the hold.';
-      default:
-        return '1. Set up in the correct starting position.\n\n2. Engage your core throughout the movement.\n\n3. Move through the full range of motion.\n\n4. Control the movement on the way back.\n\n5. Breathe steadily and maintain good form.';
+      case 'Push-ups': return '1. Start in a plank position with hands slightly wider than shoulders.\n\n2. Keep your body in a straight line from head to heels.\n\n3. Lower your body until your chest nearly touches the floor.\n\n4. Push yourself back up to the starting position.\n\n5. Repeat for desired reps.';
+      case 'Squats': return '1. Stand with feet shoulder-width apart, toes slightly out.\n\n2. Keep your chest up and core engaged.\n\n3. Lower your body by bending knees and pushing hips back.\n\n4. Go down until thighs are parallel to the floor.\n\n5. Push through your heels to return to standing.';
+      case 'Plank': return '1. Start on your forearms and toes.\n\n2. Keep your body in a perfectly straight line.\n\n3. Engage your core and squeeze your glutes.\n\n4. Hold without letting hips sag or rise.\n\n5. Breathe steadily throughout the hold.';
+      default: return '1. Set up in the correct starting position.\n\n2. Engage your core throughout the movement.\n\n3. Move through the full range of motion.\n\n4. Control the movement on the way back.\n\n5. Breathe steadily and maintain good form.';
     }
   }
 
+  // static for now, same 3 tips on every exercise regardless of muscle group.
+  // could eventually be smarter (e.g. different tips for cardio vs strength)
   List<Map<String, dynamic>> get proTips {
     return [
       {'title': 'Focus on Form', 'description': 'Quality over quantity - maintain proper form', 'icon': Icons.check_circle, 'color': PUI.mint},
@@ -95,62 +81,43 @@ class ExerciseDetailScreen extends StatelessWidget {
     ];
   }
 
+  // hardcoded "Core" as the secondary muscle for literally everything —
+  // not accurate but placeholder until we have real muscle-mapping data
   Map<String, List<String>> get musclesWorked => {'Primary': [muscle], 'Secondary': ['Core']};
 
+  // not wired up to anything right now — leaving it here since I remember
+  // wanting a "favorite this exercise" or "report an issue" button that
+  // would use this, just haven't gotten to it
   void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('🚀 $feature is being upgraded next!', style: PUI.text(weight: FontWeight.w600)),
-        backgroundColor: PUI.surface,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('🚀 $feature is being upgraded next!', style: PUI.text(weight: FontWeight.w600)), backgroundColor: PUI.surface, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
   }
 
   void _quickStart(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ActiveWorkoutScreen(
-          customExercises: [
-            {'name': name, 'muscle': muscle, 'difficulty': difficulty, 'sets': 3, 'targetReps': 10},
-          ],
-        ),
-      ),
-    );
+    Navigator.push(context, MaterialPageRoute(builder: (context) => ActiveWorkoutScreen(customExercises: [{'name': name, 'muscle': muscle, 'difficulty': difficulty, 'sets': 3, 'targetReps': 10}])));
   }
 
-  // 🆕 QUEST C: ADD TO WORKOUT LOGIC
-    void _showAddToWorkoutSheet(BuildContext context) async {
+  void _showAddToWorkoutSheet(BuildContext context) async {
     final rawWorkouts = CustomWorkoutStorage.getAllCustomWorkouts();
     final workouts = rawWorkouts.map((w) => Map<String, dynamic>.from(w as Map)).toList();
 
     showModalBottomSheet(
       context: context,
       backgroundColor: PUI.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
       builder: (context) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
-            ),
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 24),
             Text("Add to Workout", style: PUI.text(size: 22, weight: FontWeight.w800)),
             const SizedBox(height: 8),
             Text("Where do you want to put $name?", style: PUI.text(size: 14, color: Colors.white.withOpacity(0.6))),
             const SizedBox(height: 24),
-            
-            if (workouts.isEmpty)
-               Center(child: Text("No custom workouts yet. Create one!", style: PUI.text(color: Colors.white.withOpacity(0.5))))
-            else
-               ConstrainedBox(
+            if (workouts.isEmpty) Center(child: Text("No custom workouts yet. Create one!", style: PUI.text(color: Colors.white.withOpacity(0.5))))
+            else ConstrainedBox(
                  constraints: const BoxConstraints(maxHeight: 300),
                  child: ListView.builder(
                    shrinkWrap: true,
@@ -159,61 +126,33 @@ class ExerciseDetailScreen extends StatelessWidget {
                      final w = workouts[i];
                      return Pressable(
                        onTap: () {
+                         // mutating the map directly and re-saving the whole
+                         // workout — a bit heavy-handed but storage layer
+                         // doesn't support partial updates right now
                          final rawExercises = w['exercises'] as List? ?? [];
-                         // 🛡️ THE FIX: Translate wild Hive maps into typed maps
-                         final exercises = rawExercises
-                             .map((e) => Map<String, dynamic>.from(e as Map))
-                             .toList();
-                             
-                         exercises.add({
-                           'name': name,
-                           'muscle': muscle,
-                           'difficulty': difficulty,
-                           'sets': 3,
-                           'targetReps': 10,
-                         });
+                         final exercises = rawExercises.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+                         exercises.add({'name': name, 'muscle': muscle, 'difficulty': difficulty, 'sets': 3, 'targetReps': 10});
                          w['exercises'] = exercises;
                          CustomWorkoutStorage.saveCustomWorkout(w);
                          Navigator.pop(context);
-                         ScaffoldMessenger.of(context).showSnackBar(
-                           SnackBar(content: Text("Added to ${w['name']}!"), backgroundColor: PUI.mint),
-                         );
+                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Added to ${w['name']}!"), backgroundColor: PUI.mint));
                        },
                        child: Container(
                          margin: const EdgeInsets.only(bottom: 10),
                          padding: const EdgeInsets.all(16),
-                         decoration: BoxDecoration(
-                           color: Colors.white.withOpacity(0.05),
-                           borderRadius: BorderRadius.circular(16),
-                           border: Border.all(color: Colors.white.withOpacity(0.1)),
-                         ),
-                         child: Row(
-                           children: [
-                             const Icon(Icons.fitness_center, color: PUI.primary),
-                             const SizedBox(width: 12),
-                             Expanded(child: Text(w['name'] as String? ?? '', style: PUI.text(weight: FontWeight.w700))),
-                             const Icon(Icons.add_circle_outline, color: PUI.mint),
-                           ],
-                         ),
+                         decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.1))),
+                         child: Row(children: [const Icon(Icons.fitness_center, color: PUI.primary), const SizedBox(width: 12), Expanded(child: Text(w['name'] as String? ?? '', style: PUI.text(weight: FontWeight.w700))), const Icon(Icons.add_circle_outline, color: PUI.mint)]),
                        ),
                      );
                    },
                  ),
                ),
-            
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context); 
-                  _createNewWorkoutWithExercise(context); 
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: PUI.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
+                onPressed: () { Navigator.pop(context); _createNewWorkoutWithExercise(context); },
+                style: ElevatedButton.styleFrom(backgroundColor: PUI.primary, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                 icon: const Icon(Icons.add),
                 label: Text("Create New Workout", style: PUI.text(weight: FontWeight.w700)),
               ),
@@ -232,35 +171,25 @@ class ExerciseDetailScreen extends StatelessWidget {
       builder: (context) => AlertDialog(
         backgroundColor: PUI.surface,
         title: Text("New Workout", style: PUI.text(weight: FontWeight.w700)),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(hintText: "e.g. Push Day", hintStyle: PUI.text(color: Colors.white38)),
-          style: PUI.text(),
-        ),
+        content: TextField(controller: controller, decoration: InputDecoration(hintText: "e.g. Push Day", hintStyle: PUI.text(color: Colors.white38)), style: PUI.text()),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: Text("Cancel", style: PUI.text(color: Colors.white54))),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            style: ElevatedButton.styleFrom(backgroundColor: PUI.primary),
-            child: Text("Create", style: PUI.text(weight: FontWeight.w700)),
-          )
+          ElevatedButton(onPressed: () => Navigator.pop(context, controller.text), style: ElevatedButton.styleFrom(backgroundColor: PUI.primary), child: Text("Create", style: PUI.text(weight: FontWeight.w700)))
         ],
       ),
     );
 
+    // no trimming/validation on newName here — an all-whitespace name would
+    // technically slip through. low priority, but worth a look eventually
     if (newName != null && newName.isNotEmpty) {
       final newWorkout = {
         'id': DateTime.now().millisecondsSinceEpoch.toString(),
         'name': newName,
-        'exercises': [
-          {'name': name, 'muscle': muscle, 'difficulty': difficulty, 'sets': 3, 'targetReps': 10}
-        ],
+        'exercises': [{'name': name, 'muscle': muscle, 'difficulty': difficulty, 'sets': 3, 'targetReps': 10}],
       };
       CustomWorkoutStorage.saveCustomWorkout(newWorkout);
       if (context.mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text("Created '$newName' with $name!"), backgroundColor: PUI.mint),
-         );
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Created '$newName' with $name!"), backgroundColor: PUI.mint));
       }
     }
   }
@@ -271,29 +200,14 @@ class ExerciseDetailScreen extends StatelessWidget {
       title: 'Exercise',
       actions: [
         Container(
-          margin: const EdgeInsets.only(right: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: difficultyColor.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: difficultyColor.withOpacity(0.4)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(difficultyIcon, color: difficultyColor, size: 14),
-              const SizedBox(width: 6),
-              Text(difficulty, style: PUI.text(size: 12, weight: FontWeight.w700, color: difficultyColor)),
-            ],
-          ),
+          margin: const EdgeInsets.only(right: 16), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(color: difficultyColor.withOpacity(0.12), borderRadius: BorderRadius.circular(20), border: Border.all(color: difficultyColor.withOpacity(0.4))),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(difficultyIcon, color: difficultyColor, size: 14), const SizedBox(width: 6), Text(difficulty, style: PUI.text(size: 12, weight: FontWeight.w700, color: difficultyColor))]),
         ),
       ],
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
-            child: _buildVideoPlayer(),
-          ),
+          Padding(padding: const EdgeInsets.fromLTRB(24, 8, 24, 20), child: _buildVideoPlayer()),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -302,31 +216,14 @@ class ExerciseDetailScreen extends StatelessWidget {
                 children: [
                   GradientText(name, size: 30, weight: FontWeight.w900),
                   const SizedBox(height: 12),
-                  if (equipment != null || target != null)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        if (equipment != null && equipment!.isNotEmpty) _buildInfoChip(Icons.construction, _titleCase(equipment!)),
-                        if (target != null && target!.isNotEmpty) _buildInfoChip(Icons.track_changes, _titleCase(target!)),
-                      ],
-                    ),
+                  if (equipment != null || target != null) Wrap(spacing: 8, runSpacing: 8, children: [if (equipment != null && equipment!.isNotEmpty) _buildInfoChip(Icons.construction, _titleCase(equipment!)), if (target != null && target!.isNotEmpty) _buildInfoChip(Icons.track_changes, _titleCase(target!))]),
                   const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(child: _buildStatCard(recommendedSets, "Sets", Icons.repeat)),
-                      const SizedBox(width: 12),
-                      Expanded(child: _buildStatCard(recommendedReps, "Reps", Icons.fitness_center)),
-                      const SizedBox(width: 12),
-                      Expanded(child: _buildStatCard(recommendedRest, "Rest", Icons.timer)),
-                    ],
-                  ),
+                  Row(children: [Expanded(child: _buildStatCard(recommendedSets, "Sets", Icons.repeat)), const SizedBox(width: 12), Expanded(child: _buildStatCard(recommendedReps, "Reps", Icons.fitness_center)), const SizedBox(width: 12), Expanded(child: _buildStatCard(recommendedRest, "Rest", Icons.timer))]),
                   const SizedBox(height: 28),
                   const SectionTitle("Muscles Worked"),
                   const SizedBox(height: 12),
                   Glass(
-                    radius: 20,
-                    padding: const EdgeInsets.all(16),
+                    radius: 20, padding: const EdgeInsets.all(16),
                     child: Column(
                       children: musclesWorked.entries.map((entry) {
                         final isPrimary = entry.key == 'Primary';
@@ -335,24 +232,11 @@ class ExerciseDetailScreen extends StatelessWidget {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              SizedBox(
-                                width: 80,
-                                child: Text(entry.key, style: PUI.text(size: 13, weight: FontWeight.w700, color: isPrimary ? muscleColor : Colors.white.withOpacity(0.4))),
-                              ),
+                              SizedBox(width: 80, child: Text(entry.key, style: PUI.text(size: 13, weight: FontWeight.w700, color: isPrimary ? muscleColor : Colors.white.withOpacity(0.4)))),
                               Expanded(
                                 child: Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: entry.value.map((m) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: isPrimary ? muscleColor.withOpacity(0.2) : Colors.white.withOpacity(0.05),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(m, style: PUI.text(size: 12, weight: FontWeight.w600, color: isPrimary ? muscleColor : Colors.white.withOpacity(0.4))),
-                                    );
-                                  }).toList(),
+                                  spacing: 6, runSpacing: 6,
+                                  children: entry.value.map((m) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: isPrimary ? muscleColor.withOpacity(0.2) : Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(10)), child: Text(m, style: PUI.text(size: 12, weight: FontWeight.w600, color: isPrimary ? muscleColor : Colors.white.withOpacity(0.4))))).toList(),
                                 ),
                               ),
                             ],
@@ -364,44 +248,28 @@ class ExerciseDetailScreen extends StatelessWidget {
                   const SizedBox(height: 28),
                   const SectionTitle("Form Instructions"),
                   const SizedBox(height: 12),
+                  // prefer the API's step-by-step instructions when we have
+                  // them, only fall back to our hardcoded generic text
+                  // when the API has nothing for this exercise
                   Glass(
-                    radius: 20,
-                    padding: const EdgeInsets.all(20),
+                    radius: 20, padding: const EdgeInsets.all(20),
                     child: apiInstructions.isNotEmpty
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              for (int i = 0; i < apiInstructions.length; i++)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 14),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(6),
-                                        decoration: BoxDecoration(color: muscleColor.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-                                        child: Text('${i + 1}', style: PUI.text(size: 12, weight: FontWeight.w800, color: muscleColor)),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(apiInstructions[i], style: PUI.text(size: 14, color: Colors.white.withOpacity(0.8)).copyWith(height: 1.5)),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          )
+                        ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            for (int i = 0; i < apiInstructions.length; i++) Padding(
+                              padding: const EdgeInsets.only(bottom: 14),
+                              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: muscleColor.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: Text('${i + 1}', style: PUI.text(size: 12, weight: FontWeight.w800, color: muscleColor))),
+                                const SizedBox(width: 12),
+                                Expanded(child: Text(apiInstructions[i], style: PUI.text(size: 14, color: Colors.white.withOpacity(0.8)).copyWith(height: 1.5))),
+                              ]),
+                            ),
+                          ])
                         : Text(instructions, style: PUI.text(size: 15, color: Colors.white.withOpacity(0.8)).copyWith(height: 1.6)),
                   ),
                   const SizedBox(height: 28),
                   const SectionTitle("Pro Tips"),
                   const SizedBox(height: 12),
-                  ...proTips.map(
-                    (tip) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildTipCard(tip['title'] as String, tip['description'] as String, tip['icon'] as IconData, tip['color'] as Color),
-                    ),
-                  ),
+                  ...proTips.map((tip) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _buildTipCard(tip['title'] as String, tip['description'] as String, tip['icon'] as IconData, tip['color'] as Color))),
                   const SizedBox(height: 24),
                 ],
               ),
@@ -416,21 +284,8 @@ class ExerciseDetailScreen extends StatelessWidget {
                     onTap: () => _quickStart(context),
                     child: Container(
                       height: 56,
-                      decoration: BoxDecoration(
-                        color: muscleColor.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: muscleColor.withOpacity(0.5), width: 2),
-                      ),
-                      child: Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.play_arrow, color: muscleColor, size: 20),
-                            const SizedBox(width: 4),
-                            Text("Quick Start", style: PUI.text(size: 14, weight: FontWeight.w800, color: muscleColor)),
-                          ],
-                        ),
-                      ),
+                      decoration: BoxDecoration(color: muscleColor.withOpacity(0.08), borderRadius: BorderRadius.circular(16), border: Border.all(color: muscleColor.withOpacity(0.5), width: 2)),
+                      child: Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.play_arrow, color: muscleColor, size: 20), const SizedBox(width: 4), Text("Quick Start", style: PUI.text(size: 14, weight: FontWeight.w800, color: muscleColor))])),
                     ),
                   ),
                 ),
@@ -438,27 +293,11 @@ class ExerciseDetailScreen extends StatelessWidget {
                 Expanded(
                   flex: 2,
                   child: Pressable(
-                    // 🆕 WIRED UP!
                     onTap: () => _showAddToWorkoutSheet(context),
                     child: Container(
                       height: 56,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [muscleColor, muscleColor.withOpacity(0.7)]),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(color: muscleColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8)),
-                        ],
-                      ),
-                      child: Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.add_circle, color: Colors.white),
-                            const SizedBox(width: 8),
-                            Text("Add to Workout", style: PUI.text(size: 15, weight: FontWeight.w800)),
-                          ],
-                        ),
-                      ),
+                      decoration: BoxDecoration(gradient: LinearGradient(colors: [muscleColor, muscleColor.withOpacity(0.7)]), borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: muscleColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8))]),
+                      child: Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.add_circle, color: Colors.white), const SizedBox(width: 8), Text("Add to Workout", style: PUI.text(size: 15, weight: FontWeight.w800))])),
                     ),
                   ),
                 ),
@@ -475,144 +314,54 @@ class ExerciseDetailScreen extends StatelessWidget {
   Widget _buildInfoChip(IconData icon, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: PUI.mint, size: 14),
-          const SizedBox(width: 6),
-          Text(label, style: PUI.text(size: 12, weight: FontWeight.w600, color: Colors.white.withOpacity(0.7))),
-        ],
-      ),
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white.withOpacity(0.1))),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, color: PUI.mint, size: 14), const SizedBox(width: 6), Text(label, style: PUI.text(size: 12, weight: FontWeight.w600, color: Colors.white.withOpacity(0.7)))]),
     );
   }
 
   Widget _buildVideoPlayer() {
     return Container(
-      width: double.infinity,
-      height: 240,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [PUI.surface, PUI.bg]),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: muscleColor.withOpacity(0.3), width: 1),
-        boxShadow: [BoxShadow(color: muscleColor.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))],
-      ),
+      width: double.infinity, height: 240,
+      decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [PUI.surface, PUI.bg]), borderRadius: BorderRadius.circular(24), border: Border.all(color: muscleColor.withOpacity(0.3), width: 1), boxShadow: [BoxShadow(color: muscleColor.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))]),
       child: Stack(
         children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: CustomPaint(painter: _GridPainter(color: Colors.white.withOpacity(0.03))),
-            ),
-          ),
-          if (hasGif)
-            Positioned.fill(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: CachedNetworkImage(
-                  imageUrl: gifUrl!,
-                  httpHeaders: const {'x-rapidapi-key': ApiKeys.exercisedbKey},
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                  placeholder: (context, url) => Center(child: CircularProgressIndicator(color: muscleColor, strokeWidth: 2)),
-                  errorWidget: (context, url, error) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(muscleIcon, size: 70, color: muscleColor.withOpacity(0.8)),
-                        const SizedBox(height: 8),
-                        Text("No demonstration available", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5))),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(24), child: CustomPaint(painter: _GridPainter(color: Colors.white.withOpacity(0.03))))),
+          // passing the RapidAPI key straight in the image request header —
+          // works fine for a personal project, but if this ever goes wider
+          // release we should proxy this through our own backend instead
+          // of shipping the key in the client
+          if (hasGif) Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(24), child: CachedNetworkImage(imageUrl: gifUrl!, httpHeaders: const {'x-rapidapi-key': ApiKeys.exercisedbKey}, fit: BoxFit.cover, width: double.infinity, height: double.infinity, placeholder: (context, url) => Center(child: CircularProgressIndicator(color: muscleColor, strokeWidth: 2)), errorWidget: (context, url, error) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(muscleIcon, size: 70, color: muscleColor.withOpacity(0.8)), const SizedBox(height: 8), Text("No demonstration available", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5)))]))))),
           Positioned(
-            top: 16,
-            left: 16,
+            top: 16, left: 16,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.55),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: muscleColor.withOpacity(0.6)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.local_fire_department, color: muscleColor, size: 16),
-                  const SizedBox(width: 6),
-                  Text("Target: $muscle", style: PUI.text(size: 12, weight: FontWeight.w700, color: muscleColor)),
-                ],
-              ),
+              decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), borderRadius: BorderRadius.circular(20), border: Border.all(color: muscleColor.withOpacity(0.6))),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.local_fire_department, color: muscleColor, size: 16), const SizedBox(width: 6), Text("Target: $muscle", style: PUI.text(size: 12, weight: FontWeight.w700, color: muscleColor))]),
             ),
           ),
-          if (!hasGif)
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(muscleIcon, size: 80, color: muscleColor.withOpacity(0.8)),
-                  const SizedBox(height: 8),
-                  Text("3D Form Demonstration", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5))),
-                ],
-              ),
-            ),
-        ],
+          // this fallback block below — double check this compiles before
+          // shipping, might've broken it during a copy-paste edit
+          if (!hasGif) Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(muscleIcon, size: 80, color: muscleColor.withOpacity(0.8)), const SizedBox(height: 8), Text("3D Form Demonstration", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5)))])),        ],
       ),
     );
   }
 
   Widget _buildStatCard(String value, String label, IconData icon) {
     return Glass(
-      radius: 16,
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        children: [
-          Icon(icon, color: muscleColor, size: 22),
-          const SizedBox(height: 8),
-          GradientText(value, size: 18, colors: [Colors.white, muscleColor]),
-          const SizedBox(height: 4),
-          Text(label, style: PUI.text(size: 12, color: Colors.white.withOpacity(0.6))),
-        ],
-      ),
+      radius: 16, padding: const EdgeInsets.all(14),
+      child: Column(children: [Icon(icon, color: muscleColor, size: 22), const SizedBox(height: 8), GradientText(value, size: 18, colors: [Colors.white, muscleColor]), const SizedBox(height: 4), Text(label, style: PUI.text(size: 12, color: Colors.white.withOpacity(0.6)))]),
     );
   }
 
   Widget _buildTipCard(String title, String description, IconData icon, Color color) {
     return Glass(
-      radius: 16,
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: PUI.text(size: 15, weight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                Text(description, style: PUI.text(size: 13, color: Colors.white.withOpacity(0.6))),
-              ],
-            ),
-          ),
-        ],
-      ),
+      radius: 16, padding: const EdgeInsets.all(16),
+      child: Row(children: [Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: color, size: 22)), const SizedBox(width: 14), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: PUI.text(size: 15, weight: FontWeight.w700)), const SizedBox(height: 4), Text(description, style: PUI.text(size: 13, color: Colors.white.withOpacity(0.6)))]))]),
     );
   }
 }
 
+// faint background grid on the video/GIF placeholder, purely decorative
 class _GridPainter extends CustomPainter {
   final Color color;
   _GridPainter({required this.color});

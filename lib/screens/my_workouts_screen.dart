@@ -3,6 +3,9 @@ import 'package:workout_tracker/services/storage_services.dart';
 import 'active_workout_screen.dart';
 import '../core/premium_ui.dart';
 
+// Just a list view over whatever's saved in CustomWorkoutStorage. Nothing
+// fancy — no sorting, no search yet. Add those if this ever gets used for
+// more than a handful of saved routines.
 class MyWorkoutsScreen extends StatefulWidget {
   const MyWorkoutsScreen({super.key});
 
@@ -21,11 +24,11 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
 
   void _loadWorkouts() {
     setState(() {
-      // 🛡️ HIVE SHIELD: Safely cast the list and the maps inside it
       final rawWorkouts = CustomWorkoutStorage.getAllCustomWorkouts();
-      _workouts = rawWorkouts
-          .map((w) => Map<String, dynamic>.from(w as Map))
-          .toList();
+      // Hive hands back a Map<dynamic, dynamic> under the hood, so we cast
+      // to Map<String, dynamic> here or literally everything downstream
+      // that expects string keys blows up
+      _workouts = rawWorkouts.map((w) => Map<String, dynamic>.from(w as Map)).toList();
     });
   }
 
@@ -53,7 +56,7 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
               itemBuilder: (context, i) {
                 final w = _workouts[i];
                 final rawExercises = w['exercises'] as List? ?? [];
-                
+
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Pressable(
@@ -62,12 +65,12 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => ActiveWorkoutScreen(
-                            // 🛡️ THE FIX: Translate wild Hive maps into typed maps
-                            customExercises: rawExercises
-                                .map((e) => Map<String, dynamic>.from(e as Map))
-                                .toList(),
+                            customExercises: rawExercises.map((e) => Map<String, dynamic>.from(e as Map)).toList(),
                           ),
                         ),
+                        // reload when they come back in case they logged
+                        // a workout and something here needs to reflect that
+                        // later (not used for much right now, but cheap to do)
                       ).then((_) => _loadWorkouts());
                     },
                     child: Glass(
@@ -76,16 +79,12 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            w['name'] as String? ?? 'Untitled',
-                            style: PUI.text(size: 20, weight: FontWeight.w800),
-                          ),
+                          Text(w['name'] as String? ?? 'Untitled', style: PUI.text(size: 20, weight: FontWeight.w800)),
                           const SizedBox(height: 12),
-                          Text(
-                            "${rawExercises.length} exercise${rawExercises.length == 1 ? '' : 's'}",
-                            style: PUI.text(size: 14, color: PUI.primary, weight: FontWeight.w600),
-                          ),
+                          Text("${rawExercises.length} exercise${rawExercises.length == 1 ? '' : 's'}", style: PUI.text(size: 14, color: PUI.primary, weight: FontWeight.w600)),
                           const SizedBox(height: 16),
+                          // only show the first 3 exercise chips + a "+N more"
+                          // pill, otherwise long workouts blow out the card height
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
@@ -94,27 +93,15 @@ class _MyWorkoutsScreenState extends State<MyWorkoutsScreen> {
                                 final exMap = Map<String, dynamic>.from(ex as Map);
                                 return Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.05),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    exMap['name'] as String? ?? '',
-                                    style: PUI.text(size: 12, weight: FontWeight.w600),
-                                  ),
+                                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+                                  child: Text(exMap['name'] as String? ?? '', style: PUI.text(size: 12, weight: FontWeight.w600)),
                                 );
                               }),
                               if (rawExercises.length > 3)
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: PUI.primary.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    "+${rawExercises.length - 3} more",
-                                    style: PUI.text(size: 12, weight: FontWeight.w700, color: PUI.primary),
-                                  ),
+                                  decoration: BoxDecoration(color: PUI.primary.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+                                  child: Text("+${rawExercises.length - 3} more", style: PUI.text(size: 12, weight: FontWeight.w700, color: PUI.primary)),
                                 ),
                             ],
                           ),
