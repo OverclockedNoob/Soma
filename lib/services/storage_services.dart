@@ -1,6 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+// All the local storage for the app lives here, split into a few boxes.
+// Nothing fancy — just thin wrappers around Hive so the rest of the app
+// doesn't need to know Hive exists. Kept every failure path returning
+// bool/empty-list instead of throwing, since a storage hiccup shouldn't
+// ever crash a screen — worst case the user sees empty stats, not a
+// red error screen.
+
 // ==================== WORKOUT STORAGE ====================
 class WorkoutStorage {
   static const String _workoutBox = 'workouts';
@@ -19,22 +26,23 @@ class WorkoutStorage {
 
   static List<Map<String, dynamic>> getAllWorkouts() {
     try {
-      final workouts =
-          _box.values
-              .whereType<Map>()
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList();
+      final workouts = _box.values
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+
+      // newest first — every screen that reads this list assumes that order
       workouts.sort((a, b) {
         try {
-          return DateTime.parse(
-            b['date'] as String,
-          ).compareTo(DateTime.parse(a['date'] as String));
+          return DateTime.parse(b['date'] as String)
+              .compareTo(DateTime.parse(a['date'] as String));
         } catch (_) {
-          return 0;
+          return 0; // malformed date, just leave it where it was
         }
       });
       return workouts;
     } catch (e) {
+      debugPrint('WorkoutStorage.getAllWorkouts error: $e');
       return [];
     }
   }
@@ -44,9 +52,10 @@ class WorkoutStorage {
     final startOfWeek = DateTime(
       now.year,
       now.month,
-      now.day - (now.weekday - 1),
+      now.day - (now.weekday - 1), // Monday as start of week
     );
     final endOfWeek = startOfWeek.add(const Duration(days: 6));
+
     return getAllWorkouts().where((w) {
       try {
         final d = DateTime.parse(w['date'] as String);
@@ -63,6 +72,7 @@ class WorkoutStorage {
       await _box.clear();
       return true;
     } catch (e) {
+      debugPrint('WorkoutStorage.clearAll error: $e');
       return false;
     }
   }
@@ -79,6 +89,7 @@ class CustomWorkoutStorage {
       await _box.add(workout);
       return true;
     } catch (e) {
+      debugPrint('CustomWorkoutStorage.saveCustomWorkout error: $e');
       return false;
     }
   }
@@ -90,6 +101,7 @@ class CustomWorkoutStorage {
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
     } catch (e) {
+      debugPrint('CustomWorkoutStorage.getAllCustomWorkouts error: $e');
       return [];
     }
   }
@@ -99,6 +111,7 @@ class CustomWorkoutStorage {
       await _box.clear();
       return true;
     } catch (e) {
+      debugPrint('CustomWorkoutStorage.clearAll error: $e');
       return false;
     }
   }
@@ -110,12 +123,12 @@ class SettingsStorage {
   static Future<void> init() async => await Hive.openBox(_settingsBox);
   static Box get _box => Hive.box(_settingsBox);
 
-  // ── Standard Settings ──────────────────────────────────────────
+  // ── Standard settings ──────────────────────────────────────────
   static bool getNotifications() =>
       _box.get('notifications', defaultValue: true) as bool;
   static bool getSoundEffects() =>
       _box.get('soundEffects', defaultValue: true) as bool;
-    static String getUserName() =>
+  static String getUserName() =>
       _box.get('userName', defaultValue: 'Champion') as String;
   static String getUserTitle() =>
       _box.get('userTitle', defaultValue: 'Fitness Enthusiast') as String;
@@ -129,12 +142,25 @@ class SettingsStorage {
   static Future<void> setUserTitle(String value) async =>
       await _box.put('userTitle', value);
 
-  // ── 🛡️ RECOVERY BANK ──────────────────────────────────────────
+  // ── Body stats (used for the MET-based calorie estimate in
+  // active_workout_screen.dart — heavier users burn more for the same
+  // exercise, so this actually matters for accuracy) ───────────────
+  static int getWeight() => _box.get('weight', defaultValue: 70) as int;
+  static int getAge() => _box.get('age', defaultValue: 25) as int;
+
+  static Future<void> setWeight(int value) async => await _box.put('weight', value);
+  static Future<void> setAge(int value) async => await _box.put('age', value);
+
+  // ── Recovery Bank ─────────────────────────────────────────────
+  // Coins earned by finishing workouts, spendable to "freeze" a missed
+  // day so it doesn't break a streak. New users start with 3 as a small
+  // freebie so the feature isn't invisible until they've earned any.
   static int getRecoveryCoins() =>
       _box.get('recoveryCoins', defaultValue: 3) as int;
 
-  static Future<void> setRecoveryCoins(int value) async =>
-      await _box.put('recoveryCoins', value);
+  static Future<void> setRecoveryCoins(int value) async {
+    await _box.put('recoveryCoins', value);
+  }
 
   static Future<void> addRecoveryCoins(int amount) async {
     final current = getRecoveryCoins();
@@ -191,12 +217,15 @@ class ProgramStorage {
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
     } catch (e) {
+      debugPrint('ProgramStorage.getAllPrograms error: $e');
       return [];
     }
   }
 
   static Future<bool> deleteProgram(String id) async {
     try {
+      // Hive gives us auto-generated keys, not the id we stored inside the
+      // map, so we have to scan for the matching entry first
       final key = _box.keys.firstWhere((k) => _box.get(k)['id'] == id);
       await _box.delete(key);
       return true;
@@ -211,6 +240,7 @@ class ProgramStorage {
       await _box.clear();
       return true;
     } catch (e) {
+      debugPrint('ProgramStorage.clearAll error: $e');
       return false;
     }
   }

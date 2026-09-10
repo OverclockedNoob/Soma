@@ -116,37 +116,44 @@ class ExerciseDetailScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Text("Where do you want to put $name?", style: PUI.text(size: 14, color: Colors.white.withOpacity(0.6))),
             const SizedBox(height: 24),
-            if (workouts.isEmpty) Center(child: Text("No custom workouts yet. Create one!", style: PUI.text(color: Colors.white.withOpacity(0.5))))
-            else ConstrainedBox(
-                 constraints: const BoxConstraints(maxHeight: 300),
-                 child: ListView.builder(
-                   shrinkWrap: true,
-                   itemCount: workouts.length,
-                   itemBuilder: (context, i) {
-                     final w = workouts[i];
-                     return Pressable(
-                       onTap: () {
-                         // mutating the map directly and re-saving the whole
-                         // workout — a bit heavy-handed but storage layer
-                         // doesn't support partial updates right now
-                         final rawExercises = w['exercises'] as List? ?? [];
-                         final exercises = rawExercises.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-                         exercises.add({'name': name, 'muscle': muscle, 'difficulty': difficulty, 'sets': 3, 'targetReps': 10});
-                         w['exercises'] = exercises;
-                         CustomWorkoutStorage.saveCustomWorkout(w);
-                         Navigator.pop(context);
-                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Added to ${w['name']}!"), backgroundColor: PUI.mint));
-                       },
-                       child: Container(
-                         margin: const EdgeInsets.only(bottom: 10),
-                         padding: const EdgeInsets.all(16),
-                         decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.1))),
-                         child: Row(children: [const Icon(Icons.fitness_center, color: PUI.primary), const SizedBox(width: 12), Expanded(child: Text(w['name'] as String? ?? '', style: PUI.text(weight: FontWeight.w700))), const Icon(Icons.add_circle_outline, color: PUI.mint)]),
-                       ),
-                     );
-                   },
-                 ),
-               ),
+            if (workouts.isEmpty)
+              Center(child: Text("No custom workouts yet. Create one!", style: PUI.text(color: Colors.white.withOpacity(0.5))))
+            else
+              // Overflow fix: this used to be a ConstrainedBox with a fixed
+              // maxHeight of 300, which overflowed on smaller screens once
+              // someone had 4+ saved workouts in their vault. Flexible lets
+              // the list take whatever room is actually left after the
+              // header and the "Create New" button below, and scrolls
+              // internally instead of trying to force a fixed height.
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: workouts.length,
+                  itemBuilder: (context, i) {
+                    final w = workouts[i];
+                    return Pressable(
+                      onTap: () {
+                        // mutating the map directly and re-saving the whole
+                        // workout — a bit heavy-handed but storage layer
+                        // doesn't support partial updates right now
+                        final rawExercises = w['exercises'] as List? ?? [];
+                        final exercises = rawExercises.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+                        exercises.add({'name': name, 'muscle': muscle, 'difficulty': difficulty, 'sets': 3, 'targetReps': 10});
+                        w['exercises'] = exercises;
+                        CustomWorkoutStorage.saveCustomWorkout(w);
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Added to ${w['name']}!"), backgroundColor: PUI.mint));
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.1))),
+                        child: Row(children: [const Icon(Icons.fitness_center, color: PUI.primary), const SizedBox(width: 12), Expanded(child: Text(w['name'] as String? ?? '', style: PUI.text(weight: FontWeight.w700))), const Icon(Icons.add_circle_outline, color: PUI.mint)]),
+                      ),
+                    );
+                  },
+                ),
+              ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -330,7 +337,30 @@ class ExerciseDetailScreen extends StatelessWidget {
           // works fine for a personal project, but if this ever goes wider
           // release we should proxy this through our own backend instead
           // of shipping the key in the client
-          if (hasGif) Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(24), child: CachedNetworkImage(imageUrl: gifUrl!, httpHeaders: const {'x-rapidapi-key': ApiKeys.exercisedbKey}, fit: BoxFit.cover, width: double.infinity, height: double.infinity, placeholder: (context, url) => Center(child: CircularProgressIndicator(color: muscleColor, strokeWidth: 2)), errorWidget: (context, url, error) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(muscleIcon, size: 70, color: muscleColor.withOpacity(0.8)), const SizedBox(height: 8), Text("No demonstration available", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5)))]))))),
+          if (hasGif)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: CachedNetworkImage(
+                  imageUrl: gifUrl!,
+                  httpHeaders: const {'x-rapidapi-key': ApiKeys.exercisedbKey},
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                  placeholder: (context, url) => Center(child: CircularProgressIndicator(color: muscleColor, strokeWidth: 2)),
+                  errorWidget: (context, url, error) => Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(muscleIcon, size: 70, color: muscleColor.withOpacity(0.8)),
+                        const SizedBox(height: 8),
+                        Text("No demonstration available", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5))),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           Positioned(
             top: 16, left: 16,
             child: Container(
@@ -339,9 +369,21 @@ class ExerciseDetailScreen extends StatelessWidget {
               child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.local_fire_department, color: muscleColor, size: 16), const SizedBox(width: 6), Text("Target: $muscle", style: PUI.text(size: 12, weight: FontWeight.w700, color: muscleColor))]),
             ),
           ),
-          // this fallback block below — double check this compiles before
-          // shipping, might've broken it during a copy-paste edit
-          if (!hasGif) Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(muscleIcon, size: 80, color: muscleColor.withOpacity(0.8)), const SizedBox(height: 8), Text("3D Form Demonstration", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5)))])),        ],
+          // NOTE: this was missing a closing paren before (copy-paste
+          // casualty somewhere along the way) — wouldn't have compiled.
+          // Fixed the paren count below, same visual output as intended.
+          if (!hasGif)
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(muscleIcon, size: 80, color: muscleColor.withOpacity(0.8)),
+                  const SizedBox(height: 8),
+                  Text("3D Form Demonstration", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5))),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

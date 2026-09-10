@@ -13,9 +13,12 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  // these initial values never actually get shown — _loadSettings() below
+  // overwrites them before the first frame paints. Left them here mostly
+  // as a fallback in case _loadSettings ever throws before finishing.
   bool _notifications = true;
   bool _soundEffects = true;
-  String _userName = 'Mitesh';
+  String _userName = 'Champion';
   String _userTitle = 'Fitness Enthusiast';
   int _recoveryCoins = 0;
 
@@ -35,7 +38,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  // 🆕 QUEST 4: EXPORT BACKUP
+  // Dumps everything into a single JSON file in the app's documents
+  // folder. No import feature yet — this is a manual "just in case"
+  // backup, not a real sync solution.
   Future<void> _exportBackup() async {
     try {
       final dir = await getApplicationDocumentsDirectory();
@@ -53,7 +58,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'soundEffects': SettingsStorage.getSoundEffects(),
           'recoveryCoins': SettingsStorage.getRecoveryCoins(),
           'frozenDates': SettingsStorage.getFrozenDates(),
-        }
+          'weight': SettingsStorage.getWeight(),
+          'age': SettingsStorage.getAge(),
+        },
       };
 
       await file.writeAsString(jsonEncode(backupData));
@@ -66,10 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    "Backup saved to Documents!",
-                    style: PUI.text(weight: FontWeight.w700),
-                  ),
+                  child: Text("Backup saved to Documents!", style: PUI.text(weight: FontWeight.w700)),
                 ),
               ],
             ),
@@ -165,7 +169,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ─────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
               child: Row(
@@ -176,12 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       Text(
                         "PREFERENCES",
-                        style: PUI.text(
-                          size: 11,
-                          weight: FontWeight.w600,
-                          letterSpacing: 2.2,
-                          color: Colors.white.withOpacity(0.4),
-                        ),
+                        style: PUI.text(size: 11, weight: FontWeight.w600, letterSpacing: 2.2, color: Colors.white.withOpacity(0.4)),
                       ),
                       const SizedBox(height: 6),
                       GradientText("Customize", size: 32),
@@ -197,7 +195,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 24),
 
-            // ── Profile Card (QUEST 2 IS HERE) ────────────────────
+            // ── Profile Card ────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Pressable(
@@ -211,16 +209,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         width: 64,
                         height: 64,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [PUI.primary, PUI.primaryDeep],
-                          ),
+                          gradient: const LinearGradient(colors: [PUI.primary, PUI.primaryDeep]),
                           shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: PUI.primary.withOpacity(0.3),
-                              blurRadius: 12,
-                            ),
-                          ],
+                          boxShadow: [BoxShadow(color: PUI.primary.withOpacity(0.3), blurRadius: 12)],
                         ),
                         child: Center(
                           child: Text(
@@ -236,16 +227,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           children: [
                             Text(_userName, style: PUI.text(size: 20, weight: FontWeight.w700)),
                             const SizedBox(height: 4),
-                            Text(
-                              _userTitle,
-                              style: PUI.text(size: 13, color: PUI.primary, weight: FontWeight.w600),
-                            ),
+                            Text(_userTitle, style: PUI.text(size: 13, color: PUI.primary, weight: FontWeight.w600)),
                           ],
                         ),
                       ),
                       Icon(Icons.edit_rounded, color: Colors.white.withOpacity(0.5), size: 20),
                     ],
                   ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // ── Body Stats (feeds the calorie estimate math on the
+            // active workout screen) ─────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: SectionTitle("Body Stats"),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Glass(
+                radius: 20,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _NumberInputRow(
+                      label: "Weight (kg)",
+                      initialValue: SettingsStorage.getWeight(),
+                      icon: Icons.scale,
+                      color: PUI.primary,
+                      onChanged: (value) async {
+                        await SettingsStorage.setWeight(value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _NumberInputRow(
+                      label: "Age (years)",
+                      initialValue: SettingsStorage.getAge(),
+                      icon: Icons.cake_outlined,
+                      color: PUI.mint,
+                      onChanged: (value) async {
+                        await SettingsStorage.setAge(value);
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -277,10 +304,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            "Current Balance",
-                            style: PUI.text(size: 16, weight: FontWeight.w700),
-                          ),
+                          Text("Current Balance", style: PUI.text(size: 16, weight: FontWeight.w700)),
                           const SizedBox(height: 4),
                           Text(
                             "$_recoveryCoins Coins available to freeze streaks",
@@ -304,14 +328,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: _buildSettingToggle(
-                "Notifications",
-                "Workout reminders",
-                Icons.notifications_outlined,
-                _notifications,
-                (v) async {
-                  await SettingsStorage.setNotifications(v);
-                  setState(() => _notifications = v);
-                },
+                "Notifications", "Workout reminders", Icons.notifications_outlined, _notifications,
+                (v) async { await SettingsStorage.setNotifications(v); setState(() => _notifications = v); },
                 PUI.primary,
               ),
             ),
@@ -319,14 +337,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: _buildSettingToggle(
-                "Sound Effects",
-                "Timer and completion sounds",
-                Icons.volume_up_outlined,
-                _soundEffects,
-                (v) async {
-                  await SettingsStorage.setSoundEffects(v);
-                  setState(() => _soundEffects = v);
-                },
+                "Sound Effects", "Timer and completion sounds", Icons.volume_up_outlined, _soundEffects,
+                (v) async { await SettingsStorage.setSoundEffects(v); setState(() => _soundEffects = v); },
                 PUI.pink,
               ),
             ),
@@ -338,19 +350,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: SectionTitle("Data Management"),
             ),
             const SizedBox(height: 12),
-            
-            // 🆕 EXPORT BACKUP BUTTON
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: _buildSettingItem(
-                "Export Backup",
-                Icons.cloud_upload_outlined,
-                PUI.mint,
-                onTap: _exportBackup,
-              ),
+              child: _buildSettingItem("Export Backup", Icons.cloud_upload_outlined, PUI.mint, onTap: _exportBackup),
             ),
             const SizedBox(height: 12),
-
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: _buildSettingItem(
@@ -364,25 +368,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       backgroundColor: PUI.surface,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                       title: Text("Clear History?", style: PUI.text(size: 20, weight: FontWeight.w700)),
-                      content: Text(
-                        "This will permanently delete all your workout data.",
-                        style: PUI.text(color: Colors.white.withOpacity(0.7)),
-                      ),
+                      content: Text("This will permanently delete all your workout data.", style: PUI.text(color: Colors.white.withOpacity(0.7))),
                       actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: Text("Cancel", style: PUI.text(color: Colors.white.withOpacity(0.5))),
-                        ),
+                        TextButton(onPressed: () => Navigator.pop(context), child: Text("Cancel", style: PUI.text(color: Colors.white.withOpacity(0.5)))),
                         ElevatedButton(
                           onPressed: () async {
                             await WorkoutStorage.clearAll();
                             Navigator.pop(context);
                             _loadSettings();
                           },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: PUI.flame,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
+                          style: ElevatedButton.styleFrom(backgroundColor: PUI.flame, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                           child: Text("Clear", style: PUI.text(weight: FontWeight.w700)),
                         ),
                       ],
@@ -398,15 +393,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // ── Helper Widgets ───────────────────────────────────────────────
-
   Widget _buildSettingToggle(
-    String title,
-    String subtitle,
-    IconData icon,
-    bool value,
-    Function(bool) onChanged,
-    Color color,
+    String title, String subtitle, IconData icon, bool value, Function(bool) onChanged, Color color,
   ) {
     return Glass(
       radius: 20,
@@ -415,10 +403,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
+            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
             child: Icon(icon, color: color, size: 22),
           ),
           const SizedBox(width: 16),
@@ -432,23 +417,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: color,
-            activeTrackColor: color.withOpacity(0.3),
-          ),
+          Switch(value: value, onChanged: onChanged, activeColor: color, activeTrackColor: color.withOpacity(0.3)),
         ],
       ),
     );
   }
 
-  Widget _buildSettingItem(
-    String title,
-    IconData icon,
-    Color color, {
-    VoidCallback? onTap,
-  }) {
+  Widget _buildSettingItem(String title, IconData icon, Color color, {VoidCallback? onTap}) {
     return Pressable(
       onTap: onTap,
       child: Glass(
@@ -458,20 +433,95 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
+              decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
               child: Icon(icon, color: color, size: 22),
             ),
             const SizedBox(width: 16),
-            Expanded(
-              child: Text(title, style: PUI.text(size: 15, weight: FontWeight.w700)),
-            ),
+            Expanded(child: Text(title, style: PUI.text(size: 15, weight: FontWeight.w700))),
             Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.4), size: 22),
           ],
         ),
       ),
+    );
+  }
+}
+
+// Pulled this out into its own small widget instead of a method on
+// SettingsScreen — it was creating a fresh TextEditingController every
+// build before (never disposed, and would've reset whatever the user
+// was typing if the parent screen rebuilt at the wrong moment). Giving
+// it its own State means the controller sticks around properly.
+class _NumberInputRow extends StatefulWidget {
+  final String label;
+  final int initialValue;
+  final IconData icon;
+  final Color color;
+  final ValueChanged<int> onChanged;
+
+  const _NumberInputRow({
+    required this.label,
+    required this.initialValue,
+    required this.icon,
+    required this.color,
+    required this.onChanged,
+  });
+
+  @override
+  State<_NumberInputRow> createState() => _NumberInputRowState();
+}
+
+class _NumberInputRowState extends State<_NumberInputRow> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialValue.toString());
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: widget.color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+          child: Icon(widget.icon, color: widget.color, size: 22),
+        ),
+        const SizedBox(width: 16),
+        Expanded(child: Text(widget.label, style: PUI.text(size: 15, weight: FontWeight.w700))),
+        SizedBox(
+          width: 80,
+          child: TextField(
+            controller: _controller,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            style: PUI.text(size: 18, weight: FontWeight.w800, color: widget.color),
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: widget.color.withOpacity(0.3)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: widget.color, width: 2),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: widget.color.withOpacity(0.3)),
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            onSubmitted: (value) {
+              final parsed = int.tryParse(value);
+              if (parsed != null && parsed > 0) {
+                widget.onChanged(parsed);
+              }
+            },
+          ),
+        ),
+      ],
     );
   }
 }
