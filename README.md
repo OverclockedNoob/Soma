@@ -20,7 +20,7 @@ Before a workout starts, it asks you 3 quick questions — how much sleep you go
 If your split has a scheduled rest day, that day doesn't break your streak — it's supposed to be a rest day. On top of that, you earn "Recovery Coins" from working out, which you can spend to freeze a day you actually missed. Life happens. One skipped Tuesday shouldn't erase three weeks of consistency.
 
 **Exercise Library**
-Around 500 exercises pulled in from ExerciseDB — GIF demos, target muscles, equipment needed, difficulty. Filter by muscle group, tap an exercise, and either quick-start it solo or drop it straight into a custom workout.
+Around 500 exercises from a bundled ExerciseDB dataset — fully offline, no API key. Each one has real difficulty ratings, target and secondary muscles, equipment, a description, and step-by-step form instructions. Filter by muscle group or difficulty, tap an exercise, and either quick-start it solo or drop it straight into a custom workout.
 
 **Build your own splits**
 Make custom workouts from the library, then assign them to specific days of the week — Push/Pull/Legs, Upper/Lower, whatever works for you. The home screen automatically knows what day it is and shows the right workout.
@@ -32,8 +32,8 @@ Lifetime totals, weekly chart, average session length. Nothing fancy, just enoug
 
 - Flutter / Dart
 - Hive for local storage — no backend, no server costs, no waiting on network requests
-- ExerciseDB (via RapidAPI) for exercise data and GIFs
-- Google Fonts, cached_network_image
+- ExerciseDB data bundled locally as JSON (`assets/exercises.json`) — zero network at runtime
+- Google Fonts
 
 ## Running it locally
 

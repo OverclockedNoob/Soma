@@ -13,6 +13,17 @@ class ExerciseDbExercise {
   final String gifUrl;
   final List<String> instructions;
 
+  // Fields the bundled dataset has always carried but we used to throw away
+  // at parse time — every one of the 500 entries has real values for these,
+  // so screens no longer need to guess or hardcode placeholders.
+  final String description;
+  final String category;
+  final List<String> secondaryMuscles;
+
+  /// Normalized to 'Beginner' / 'Intermediate' / 'Advanced' (the strings the
+  /// UI layer keys its colors and icons off of).
+  final String difficulty;
+
   ExerciseDbExercise({
     required this.id,
     required this.name,
@@ -21,7 +32,41 @@ class ExerciseDbExercise {
     required this.target,
     required this.gifUrl,
     required this.instructions,
+    this.description = '',
+    this.category = '',
+    this.secondaryMuscles = const [],
+    this.difficulty = 'Intermediate',
   });
+
+  static String _titleCase(String s) => s
+      .split(' ')
+      .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+      .join(' ');
+
+  // The dataset ships lowercase difficulty values ('beginner', 'intermediate',
+  // 'advanced'). Normalize them to what the UI expects; if an entry is ever
+  // missing one, fall back to the old rough equipment-based guess.
+  static String _parseDifficulty(Map<String, dynamic> json, String equipment) {
+    switch ((json['difficulty'] as String? ?? '').toLowerCase().trim()) {
+      case 'beginner':
+        return 'Beginner';
+      case 'intermediate':
+        return 'Intermediate';
+      case 'advanced':
+      case 'expert':
+        return 'Advanced';
+      default:
+        return _difficultyFromEquipment(equipment);
+    }
+  }
+
+  static String _difficultyFromEquipment(String equipment) {
+    final lower = equipment.toLowerCase();
+    if (lower.contains('body weight') || lower.contains('assisted')) {
+      return 'Beginner';
+    }
+    return 'Intermediate';
+  }
 
   static String _extractMedia(Map<String, dynamic> json) {
     const keys = [
@@ -38,20 +83,25 @@ class ExerciseDbExercise {
 
   factory ExerciseDbExercise.fromJson(Map<String, dynamic> json) {
     final rawName = json['name'] as String? ?? 'Unknown';
-    final prettyName = rawName
-        .split(' ')
-        .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
-        .join(' ');
+    final prettyName = _titleCase(rawName);
+    final equipment = json['equipment'] as String? ?? '';
 
     return ExerciseDbExercise(
       id: json['id']?.toString() ?? '',
       name: prettyName,
       bodyPart: json['bodyPart'] as String? ?? '',
-      equipment: json['equipment'] as String? ?? '',
+      equipment: equipment,
       target: json['target'] as String? ?? '',
       gifUrl: _extractMedia(json),
       instructions:
           (json['instructions'] as List? ?? []).map((e) => e.toString()).toList(),
+      description: json['description'] as String? ?? '',
+      category: json['category'] as String? ?? '',
+      secondaryMuscles: (json['secondaryMuscles'] as List? ?? [])
+          .map((e) => _titleCase(e.toString()))
+          .where((e) => e.isNotEmpty)
+          .toList(),
+      difficulty: _parseDifficulty(json, equipment),
     );
   }
 
@@ -63,6 +113,10 @@ class ExerciseDbExercise {
         'target': target,
         'gifUrl': gifUrl,
         'instructions': instructions,
+        'description': description,
+        'category': category,
+        'secondaryMuscles': secondaryMuscles,
+        'difficulty': difficulty,
       };
 
   String get muscleCategory {
@@ -90,15 +144,6 @@ class ExerciseDbExercise {
     }
   }
 
-  String get difficulty {
-    if (equipment.contains('body weight') || equipment.contains('assisted')) {
-      return 'Beginner';
-    }
-    if (equipment.contains('barbell') || equipment.contains('band')) {
-      return 'Intermediate';
-    }
-    return 'Intermediate';
-  }
 }
 
 // ── SERVICE: 100% LOCAL — ZERO NETWORK, ZERO KEY, ZERO QUOTA ──

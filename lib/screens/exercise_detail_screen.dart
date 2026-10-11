@@ -1,16 +1,21 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:workout_tracker/data/exercise_data.dart';
 import 'package:workout_tracker/services/exercisedb_service.dart';
 import 'package:workout_tracker/services/storage_services.dart';
-import '../config/api_keys.dart';
 import '../core/premium_ui.dart';
 import 'active_workout_screen.dart';
 
-// Shows the details for a single exercise — GIF demo (if the API has one),
-// sets/reps/rest recommendations, muscles worked, form instructions, and
-// buttons to either quick-start it solo or add it into an existing/new
-// custom workout.
+// Shows the details for a single exercise — sets/reps/rest recommendations,
+// primary + secondary muscles worked, a description, step-by-step form
+// instructions, and buttons to either quick-start it solo or add it into an
+// existing/new custom workout.
+//
+// Note: this screen used to render a "GIF demo" via CachedNetworkImage with a
+// RapidAPI key header. That whole path was dead code — the bundled dataset has
+// no media URLs (0 of 500 entries), and the api_keys.dart file it imported is
+// gitignored, so fresh clones of the repo didn't even compile. Removed along
+// with the cached_network_image dependency; the styled placeholder below is
+// what every exercise was showing anyway.
 class ExerciseDetailScreen extends StatelessWidget {
   final String name;
   final String muscle;
@@ -30,11 +35,12 @@ class ExerciseDetailScreen extends StatelessWidget {
     try { return ExerciseDbService.getCached().firstWhere((e) => e.name == name); } catch (_) { return null; }
   }
 
-  String? get gifUrl => _apiExercise?.gifUrl;
   String? get equipment => _apiExercise?.equipment;
   String? get target => _apiExercise?.target;
   List<String> get apiInstructions => _apiExercise?.instructions ?? [];
-  bool get hasGif => gifUrl != null && gifUrl!.isNotEmpty;
+  String? get description => _apiExercise?.description;
+  String? get category => _apiExercise?.category;
+  List<String> get apiSecondaryMuscles => _apiExercise?.secondaryMuscles ?? const [];
 
   String get recommendedSets {
     switch (difficulty) {
@@ -57,11 +63,11 @@ class ExerciseDetailScreen extends StatelessWidget {
     switch (difficulty) { case 'Beginner': return '60s'; case 'Intermediate': return '45s'; case 'Advanced': return '30s'; default: return '60s'; }
   }
 
-  // TODO: this only has real hand-written steps for 3 exercises, everything
-  // else falls back to a generic "do the movement correctly" text. Ideally
-  // we'd pull this from the API instructions (see apiInstructions below)
-  // and only use this as a last resort — which is sort of what the UI
-  // already does, just flagging that this list should probably grow
+  // Last-resort fallback only. Every one of the 500 bundled exercises ships
+  // real step-by-step instructions (see apiInstructions below), and the UI
+  // prefers those — this hardcoded text only shows if an exercise somehow
+  // isn't found in the cache by name, so the old "only 3 exercises have real
+  // steps" TODO no longer applies.
   String get instructions {
     switch (name) {
       case 'Push-ups': return '1. Start in a plank position with hands slightly wider than shoulders.\n\n2. Keep your body in a straight line from head to heels.\n\n3. Lower your body until your chest nearly touches the floor.\n\n4. Push yourself back up to the starting position.\n\n5. Repeat for desired reps.';
@@ -81,9 +87,18 @@ class ExerciseDetailScreen extends StatelessWidget {
     ];
   }
 
-  // hardcoded "Core" as the secondary muscle for literally everything —
-  // not accurate but placeholder until we have real muscle-mapping data
-  Map<String, List<String>> get musclesWorked => {'Primary': [muscle], 'Secondary': ['Core']};
+  // Real secondary-muscle data from the bundled dataset (every entry has it —
+  // 'triceps', 'shoulders', 'forearms', etc.). Falls back to the old generic
+  // 'Core' placeholder only if the exercise isn't found in the cache.
+  Map<String, List<String>> get musclesWorked {
+    final secondary = apiSecondaryMuscles
+        .where((m) => m.toLowerCase() != muscle.toLowerCase())
+        .toList();
+    return {
+      'Primary': [muscle],
+      'Secondary': secondary.isNotEmpty ? secondary : ['Core'],
+    };
+  }
 
   // not wired up to anything right now — leaving it here since I remember
   // wanting a "favorite this exercise" or "report an issue" button that
@@ -214,7 +229,7 @@ class ExerciseDetailScreen extends StatelessWidget {
       ],
       body: Column(
         children: [
-          Padding(padding: const EdgeInsets.fromLTRB(24, 8, 24, 20), child: _buildVideoPlayer()),
+          Padding(padding: const EdgeInsets.fromLTRB(24, 8, 24, 20), child: _buildDemoBanner()),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -223,7 +238,13 @@ class ExerciseDetailScreen extends StatelessWidget {
                 children: [
                   GradientText(name, size: 30, weight: FontWeight.w900),
                   const SizedBox(height: 12),
-                  if (equipment != null || target != null) Wrap(spacing: 8, runSpacing: 8, children: [if (equipment != null && equipment!.isNotEmpty) _buildInfoChip(Icons.construction, _titleCase(equipment!)), if (target != null && target!.isNotEmpty) _buildInfoChip(Icons.track_changes, _titleCase(target!))]),
+                  if (equipment != null || target != null || category != null) Wrap(spacing: 8, runSpacing: 8, children: [if (equipment != null && equipment!.isNotEmpty) _buildInfoChip(Icons.construction, _titleCase(equipment!)), if (target != null && target!.isNotEmpty) _buildInfoChip(Icons.track_changes, _titleCase(target!)), if (category != null && category!.isNotEmpty) _buildInfoChip(Icons.category_outlined, _titleCase(category!))]),
+                  // short blurb from the dataset ("This exercise primarily
+                  // targets...") — new, the data was always there but unused
+                  if (description != null && description!.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text(description!, style: PUI.text(size: 14, color: Colors.white.withOpacity(0.7)).copyWith(height: 1.5)),
+                  ],
                   const SizedBox(height: 20),
                   Row(children: [Expanded(child: _buildStatCard(recommendedSets, "Sets", Icons.repeat)), const SizedBox(width: 12), Expanded(child: _buildStatCard(recommendedReps, "Reps", Icons.fitness_center)), const SizedBox(width: 12), Expanded(child: _buildStatCard(recommendedRest, "Rest", Icons.timer))]),
                   const SizedBox(height: 28),
@@ -326,41 +347,16 @@ class ExerciseDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildVideoPlayer() {
+  // Renamed from _buildVideoPlayer — it never actually played anything. The
+  // bundled dataset ships no demo media (see the note at the top of this
+  // file), so this is the styled muscle-icon banner every exercise shows.
+  Widget _buildDemoBanner() {
     return Container(
       width: double.infinity, height: 240,
       decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [PUI.surface, PUI.bg]), borderRadius: BorderRadius.circular(24), border: Border.all(color: muscleColor.withOpacity(0.3), width: 1), boxShadow: [BoxShadow(color: muscleColor.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))]),
       child: Stack(
         children: [
           Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(24), child: CustomPaint(painter: _GridPainter(color: Colors.white.withOpacity(0.03))))),
-          // passing the RapidAPI key straight in the image request header —
-          // works fine for a personal project, but if this ever goes wider
-          // release we should proxy this through our own backend instead
-          // of shipping the key in the client
-          if (hasGif)
-            Positioned.fill(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: CachedNetworkImage(
-                  imageUrl: gifUrl!,
-                  httpHeaders: const {'x-rapidapi-key': ApiKeys.exercisedbKey},
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                  placeholder: (context, url) => Center(child: CircularProgressIndicator(color: muscleColor, strokeWidth: 2)),
-                  errorWidget: (context, url, error) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(muscleIcon, size: 70, color: muscleColor.withOpacity(0.8)),
-                        const SizedBox(height: 8),
-                        Text("No demonstration available", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5))),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
           Positioned(
             top: 16, left: 16,
             child: Container(
@@ -369,20 +365,16 @@ class ExerciseDetailScreen extends StatelessWidget {
               child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.local_fire_department, color: muscleColor, size: 16), const SizedBox(width: 6), Text("Target: $muscle", style: PUI.text(size: 12, weight: FontWeight.w700, color: muscleColor))]),
             ),
           ),
-          // NOTE: this was missing a closing paren before (copy-paste
-          // casualty somewhere along the way) — wouldn't have compiled.
-          // Fixed the paren count below, same visual output as intended.
-          if (!hasGif)
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(muscleIcon, size: 80, color: muscleColor.withOpacity(0.8)),
-                  const SizedBox(height: 8),
-                  Text("3D Form Demonstration", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5))),
-                ],
-              ),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(muscleIcon, size: 80, color: muscleColor.withOpacity(0.8)),
+                const SizedBox(height: 8),
+                Text("See form instructions below", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5))),
+              ],
             ),
+          ),
         ],
       ),
     );

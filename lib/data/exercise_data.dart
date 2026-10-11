@@ -15,6 +15,11 @@ class ExerciseData {
         'instructions': ex.instructions,
         'equipment': ex.equipment,
         'target': ex.target,
+        // Real per-exercise data from the bundled dataset (previously parsed
+        // and thrown away — the detail screen had to hardcode placeholders)
+        'description': ex.description,
+        'category': ex.category,
+        'secondaryMuscles': ex.secondaryMuscles,
       };
     }).toList();
 
