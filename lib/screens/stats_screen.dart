@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:workout_tracker/services/storage_services.dart';
+import 'package:workout_tracker/services/streak_service.dart';
+import '../core/event_bus.dart';
 import '../core/premium_ui.dart';
 
 class StatisticsScreen extends StatefulWidget {
@@ -18,6 +20,22 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   void initState() {
     super.initState();
     _loadData();
+
+    // Refresh when workouts are saved/deleted or settings change elsewhere
+    // in the app (e.g. HomeScreen freezing a streak with a Recovery Coin —
+    // it already broadcasts that, this screen just wasn't listening before).
+    // Same pattern HomeScreen uses.
+    WorkoutEventBus.instance.revision.addListener(_onDataChanged);
+  }
+
+  void _onDataChanged() {
+    if (mounted) _loadData();
+  }
+
+  @override
+  void dispose() {
+    WorkoutEventBus.instance.revision.removeListener(_onDataChanged);
+    super.dispose();
   }
 
   void _loadData() {
@@ -34,80 +52,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
   int getTotalWorkouts() => workouts.length;
 
-  // Heads up: this streak calc is separate from the one in HomeScreen.
-  // That one also factors in rest days from the active program, this one
-  // only cares about workouts + frozen dates. Slightly annoying that they
-  // can disagree but merging them is a bigger refactor than I want to do
-  // right now — noting it here so it's not a surprise later.
-  int getCurrentStreak() {
-    if (workouts.isEmpty) return 0;
-
-    final workoutDateSet = <DateTime>{};
-    for (var workout in workouts) {
-      try {
-        final d = DateTime.parse(workout['date'] as String);
-        workoutDateSet.add(DateTime(d.year, d.month, d.day));
-      } catch (_) {
-        continue; // bad date string, just skip it
-      }
-    }
-
-    final sortedDates = workoutDateSet.toList()..sort((a, b) => b.compareTo(a));
-    if (sortedDates.isEmpty) return 0;
-
-    final today = DateTime.now();
-    final todayNormalized = DateTime(today.year, today.month, today.day);
-    final yesterday = todayNormalized.subtract(const Duration(days: 1));
-
-    // streak only counts if the most recent workout is today/yesterday,
-    // or today/yesterday was frozen — otherwise it's dead, return 0 early
-    DateTime checkDay;
-    if (sortedDates.first == todayNormalized) {
-      checkDay = todayNormalized;
-    } else if (sortedDates.first == yesterday) {
-      checkDay = yesterday;
-    } else if (SettingsStorage.isDateFrozen(_dateKey(todayNormalized))) {
-      checkDay = todayNormalized;
-    } else if (SettingsStorage.isDateFrozen(_dateKey(yesterday))) {
-      checkDay = yesterday;
-    } else {
-      return 0;
-    }
-
-    int streak = 0;
-    for (final day in sortedDates) {
-      if (day == checkDay) {
-        streak++;
-        checkDay = checkDay.subtract(const Duration(days: 1));
-      } else if (day.isBefore(checkDay)) {
-        // gap between workouts — only bridge it if every day in between
-        // was frozen, one unfrozen day in the gap kills the streak
-        bool gapFrozen = true;
-        DateTime tempCheck = checkDay;
-        while (tempCheck.isAfter(day)) {
-          if (!SettingsStorage.isDateFrozen(_dateKey(tempCheck))) {
-            gapFrozen = false;
-            break;
-          }
-          tempCheck = tempCheck.subtract(const Duration(days: 1));
-        }
-
-        if (gapFrozen) {
-          streak += checkDay.difference(day).inDays;
-          checkDay = day;
-        } else {
-          break;
-        }
-      }
-    }
-    return streak;
-  }
-
-  // pulled this out after noticing the same "yyyy-MM-dd" formatting
-  // getting copy-pasted three times above — one typo away from a bug
-  String _dateKey(DateTime date) {
-    return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
-  }
+  // Delegates to StreakService — the single shared implementation also used
+  // by HomeScreen, so the two screens can never disagree. (The old local
+  // version didn't know about scheduled rest days, counted frozen days into
+  // the streak number, and had a gap-bridging bug that dropped workout days
+  // following a freeze.)
+  int getCurrentStreak() => StreakService.currentStreak();
 
   double getTotalHours() {
     final totalMinutes = workouts.fold<int>(0, (sum, w) => sum + ((w['durationMinutes'] as int?) ?? 0));

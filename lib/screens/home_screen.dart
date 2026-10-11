@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:workout_tracker/services/storage_services.dart';
+import 'package:workout_tracker/services/streak_service.dart';
 import 'active_workout_screen.dart';
 import 'workout_builder_screen.dart';
 import 'stats_screen.dart';
@@ -121,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
         0,
         (sum, w) => sum + ((w['calories'] as int?) ?? 0),
       );
-      currentStreak = _calculateStreak(workouts);
+      currentStreak = StreakService.currentStreak();
       weeklyData = _getWeeklyData(workouts);
       weeklyWorkoutCount = weeklyData.where((d) => d > 0).length;
       recoveryCoins = SettingsStorage.getRecoveryCoins();
@@ -149,64 +150,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return "Good Night";
   }
 
-  // NOTE: this is NOT the same streak logic as StatisticsScreen. This one
-  // also treats scheduled rest days (from the active program) as "free
-  // passes" that don't break the streak, on top of the coin-freeze system.
-  // The stats screen only knows about freezes, not rest days. Numbers can
-  // drift between the two screens because of this — should probably pull
-  // this into one shared function at some point instead of two versions.
-  int _calculateStreak(List<Map<String, dynamic>> workouts) {
-    if (workouts.isEmpty) return 0;
-
-    final workoutDates = <DateTime>{};
-    for (var w in workouts) {
-      try {
-        final d = DateTime.parse(w['date'] as String);
-        workoutDates.add(DateTime(d.year, d.month, d.day));
-      } catch (_) {}
-    }
-
-    final frozenDates = <DateTime>{};
-    for (final dateStr in SettingsStorage.getFrozenDates()) {
-      try {
-        final d = DateTime.parse(dateStr);
-        frozenDates.add(DateTime(d.year, d.month, d.day));
-      } catch (_) {}
-    }
-
-    // only look back 30 days for rest-day lookup, going further doesn't
-    // really matter since streaks that long would've already broken
-    // if there was a real gap
-    final restDays = <DateTime>{};
-    if (_activeProgram != null && _activeProgram!['schedule'] != null) {
-      final schedule = Map<String, dynamic>.from(_activeProgram!['schedule'] as Map);
-      final today = DateTime.now();
-      for (int i = 0; i < 30; i++) {
-        final d = today.subtract(Duration(days: i));
-        final dayName = _fullDays[d.weekday - 1];
-        if (schedule[dayName] == null) {
-          restDays.add(DateTime(d.year, d.month, d.day));
-        }
-      }
-    }
-
-    final today = DateTime.now();
-    DateTime check = DateTime(today.year, today.month, today.day);
-    int streak = 0;
-
-    if (!workoutDates.contains(check) && !frozenDates.contains(check) && !restDays.contains(check)) {
-      check = check.subtract(const Duration(days: 1));
-    }
-
-    while (workoutDates.contains(check) || frozenDates.contains(check) || restDays.contains(check)) {
-      if (workoutDates.contains(check)) {
-        streak++;
-      }
-      check = check.subtract(const Duration(days: 1));
-    }
-
-    return streak;
-  }
+  // Streak calculation now lives in StreakService (shared with StatsScreen
+  // so the two can never drift). It applies the same rules this method used
+  // to: workouts count, scheduled rest days and coin-frozen days keep the
+  // streak alive without incrementing it.
 
   List<double> _getWeeklyData(List<Map<String, dynamic>> workouts) {
     final weeklyProgress = List<double>.filled(7, 0.0);
@@ -591,7 +538,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // workout doesn't kill the streak. Coins presumably come from
   // completing workouts (earned somewhere in the workout flow, not this file)
   void _showRecoveryBankPopup() {
-    final todayStr = "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+    final todayStr = StreakService.dateKey(DateTime.now());
     final isAlreadyFrozen = SettingsStorage.isDateFrozen(todayStr);
 
     showModalBottomSheet(
