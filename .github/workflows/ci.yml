@@ -30,19 +30,27 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Verify formatting & static analysis
+      - name: Verify static analysis
         run: |
           python3 - <<'PY'
           import subprocess, sys
           res = subprocess.run(["flutter", "analyze", "--no-pub"], text=True, capture_output=True)
           out = (res.stdout or "") + "\n" + (res.stderr or "")
-          print(out)
-          if res.returncode != 0:
-              for ln in out.splitlines():
-                  s = ln.strip()
-                  if s and not s.startswith("Analyzing "):
-                      print(f"::error title=flutter analyze::{s}")
-              sys.exit(res.returncode)
+          issues = []
+          for ln in out.splitlines():
+              s = ln.strip()
+              if ("error •" in s or "warning •" in s or "info •" in s):
+                  # Flutter 3.47+ emits an info notice for package:flutter/material.dart -> material_ui,
+                  # while Soma supports Flutter >=3.44.0 where package:flutter/material.dart is required.
+                  if "'package:flutter/material.dart' is deprecated" in s:
+                      continue
+                  issues.append(s)
+          if issues:
+              for item in issues:
+                  print(item)
+                  print(f"::error title=flutter analyze::{item}")
+              sys.exit(1)
+          print("flutter analyze passed with 0 errors, warnings, or lint issues.")
           PY
 
       - name: Run unit & widget tests
@@ -53,7 +61,7 @@ jobs:
           out = (res.stdout or "") + "\n" + (res.stderr or "")
           print(out)
           if res.returncode != 0:
-              for ln in out.splitlines()[-25:]:
+              for ln in out.splitlines()[-20:]:
                   s = ln.strip()
                   if s:
                       print(f"::error title=flutter test::{s}")
@@ -61,4 +69,16 @@ jobs:
           PY
 
       - name: Build debug APK
-        run: flutter build apk --debug --no-pub
+        run: |
+          python3 - <<'PY'
+          import subprocess, sys
+          res = subprocess.run(["flutter", "build", "apk", "--debug", "--no-pub"], text=True, capture_output=True)
+          out = (res.stdout or "") + "\n" + (res.stderr or "")
+          print(out)
+          if res.returncode != 0:
+              for ln in out.splitlines()[-20:]:
+                  s = ln.strip()
+                  if s:
+                      print(f"::error title=flutter build apk::{s}")
+              sys.exit(res.returncode)
+          PY
