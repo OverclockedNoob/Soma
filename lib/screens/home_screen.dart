@@ -1,18 +1,18 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:workout_tracker/services/storage_services.dart';
-import 'active_workout_screen.dart';
-import 'workout_builder_screen.dart';
-import 'stats_screen.dart';
-import 'library_screen.dart';
-import 'split_builder_screen.dart';
+
+import '../core/event_bus.dart';
+import '../core/premium_ui.dart';
+import '../models/workout_models.dart';
+import '../services/storage_services.dart';
+import '../services/streak_service.dart';
+import '../widgets/vibe_check_sheet.dart';
 import 'calendar_screen.dart';
 import 'my_workouts_screen.dart';
-import '../core/premium_ui.dart';
-import '../core/event_bus.dart';
-import '../widgets/vibe_check_sheet.dart';
+import 'stats_screen.dart';
+import 'workout_builder_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,33 +26,27 @@ class _HomeScreenState extends State<HomeScreen> {
   int currentStreak = 0;
   int totalCalories = 0;
   int recoveryCoins = 0;
-  List<double> weeklyData = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+  List<double> weeklyData = List<double>.filled(7, 0.0);
   int weeklyWorkoutCount = 0;
   String _userName = 'Champion';
-  Map<String, dynamic>? _activeProgram;
+  bool _showReminders = true;
+  bool _completedToday = false;
+
   String? _todaysWorkoutName;
   List<Map<String, dynamic>>? _todaysExercises;
   bool _isTodayRestDay = false;
 
-  static const List<String> _fullDays = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
-  ];
-
-  // little delay before the fade-in animation kicks off so it doesn't
-  // feel jarring on first frame
   bool _isLoaded = false;
+  Timer? _introTimer;
 
   @override
   void initState() {
     super.initState();
     _loadData();
 
-    // other screens (workout builder, active workout, etc.) can save/delete
-    // workouts without ever touching this screen directly. This listener is
-    // how we find out about it and refresh without a manual pull-to-refresh.
     WorkoutEventBus.instance.revision.addListener(_onWorkoutDataChanged);
 
-    Future.delayed(const Duration(milliseconds: 300), () {
+    _introTimer = Timer(const Duration(milliseconds: 300), () {
       if (mounted) setState(() => _isLoaded = true);
     });
   }
@@ -63,186 +57,104 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // don't forget this if you ever add more listeners here — learned that
-  // one the hard way on another screen
   @override
   void dispose() {
+    _introTimer?.cancel();
     WorkoutEventBus.instance.revision.removeListener(_onWorkoutDataChanged);
     super.dispose();
   }
 
   void _loadData() {
-    final workouts = WorkoutStorage.getAllWorkouts();
-    _userName = SettingsStorage.getUserName();
-    final programs = ProgramStorage.getAllPrograms();
+    final sessions = WorkoutStorage.getAllWorkoutSessions();
+    final thisWeekSessions = WorkoutStorage.getWorkoutSessionsThisWeek();
+    final userName = SettingsStorage.getUserName();
+    final showReminders = SettingsStorage.getNotifications();
+    final activeProgram = ProgramStorage.getActiveProgramModel();
+    final today = DateTime.now();
+    final todayKey = formatDateKey(today);
 
-    _activeProgram = null;
-    _todaysWorkoutName = null;
-    _todaysExercises = null;
-    _isTodayRestDay = false;
+    String? todaysName;
+    List<Map<String, dynamic>>? todaysExercises;
+    bool isRest = false;
 
-    if (programs.isNotEmpty) {
-      // assuming the last saved program is the "active" one — there's no
-      // explicit isActive flag right now, might want to add one later if
-      // we ever support switching between multiple programs
-      _activeProgram = programs.last;
-      final rawSchedule = _activeProgram!['schedule'];
-
-      if (rawSchedule != null) {
-        final schedule = Map<String, dynamic>.from(rawSchedule as Map);
-        final today = DateTime.now();
-        final dayName = _fullDays[today.weekday - 1];
-        final workoutId = schedule[dayName];
-
-        if (workoutId == null) {
-          _isTodayRestDay = true;
-        } else {
-          _isTodayRestDay = false;
-          final savedWorkouts = CustomWorkoutStorage.getAllCustomWorkouts();
-          final workout = savedWorkouts.firstWhere(
-            (w) => w['id'] == workoutId,
-            orElse: () => {},
-          );
-          _todaysWorkoutName = workout['name'] as String?;
-
-          if (workout['exercises'] != null) {
-            _todaysExercises =
-                (workout['exercises'] as List)
-                    .map((e) => Map<String, dynamic>.from(e as Map))
-                    .toList();
-          }
+    if (activeProgram != null && activeProgram.isDateInRange(today)) {
+      if (activeProgram.isScheduledRestDay(today)) {
+        isRest = true;
+      } else {
+        final workoutId = activeProgram.workoutIdForDate(today);
+        final routine = CustomWorkoutStorage.getRoutineById(workoutId);
+        if (routine != null) {
+          todaysName = routine.name;
+          todaysExercises = routine.exercises
+              .map((RoutineExercise e) => e.toMap())
+              .toList();
         }
       }
     }
 
+    final progress = List<double>.filled(7, 0.0);
+    for (final session in thisWeekSessions) {
+      final day = session.dayUtc;
+      if (day != null) {
+        final idx = day.weekday - 1;
+        if (idx >= 0 && idx < 7) progress[idx] = 1.0;
+      }
+    }
+
     setState(() {
-      totalWorkouts = workouts.length;
-      totalCalories = workouts.fold(
+      _userName = userName;
+      _showReminders = showReminders;
+      _todaysWorkoutName = todaysName;
+      _todaysExercises = todaysExercises;
+      _isTodayRestDay = isRest;
+      _completedToday = sessions.any((WorkoutSession s) => s.date == todayKey);
+      totalWorkouts = sessions.length;
+      totalCalories = sessions.fold<int>(
         0,
-        (sum, w) => sum + ((w['calories'] as int?) ?? 0),
+        (int sum, WorkoutSession s) => sum + s.calories,
       );
-      currentStreak = _calculateStreak(workouts);
-      weeklyData = _getWeeklyData(workouts);
-      weeklyWorkoutCount = weeklyData.where((d) => d > 0).length;
+      currentStreak = StreakService.calculateCurrentStreak();
+      weeklyData = progress;
+      weeklyWorkoutCount = progress.where((double d) => d > 0).length;
       recoveryCoins = SettingsStorage.getRecoveryCoins();
     });
   }
 
   void _showVibeCheck(List<Map<String, dynamic>>? exercises, String name) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => VibeCheckSheet(
-        originalExercises: exercises ?? [],
-        workoutName: name,
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => VibeCheckSheet(
+          originalExercises: exercises ?? const <Map<String, dynamic>>[],
+          workoutName: name,
+        ),
       ),
     );
   }
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
-    if (hour >= 0 && hour < 5) return "Working Late";
-    if (hour < 12) return "Good Morning";
-    if (hour < 17) return "Good Afternoon";
-    if (hour < 21) return "Good Evening";
-    return "Good Night";
+    if (hour >= 0 && hour < 5) return 'Working Late';
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    if (hour < 21) return 'Good Evening';
+    return 'Good Night';
   }
 
-  // NOTE: this is NOT the same streak logic as StatisticsScreen. This one
-  // also treats scheduled rest days (from the active program) as "free
-  // passes" that don't break the streak, on top of the coin-freeze system.
-  // The stats screen only knows about freezes, not rest days. Numbers can
-  // drift between the two screens because of this — should probably pull
-  // this into one shared function at some point instead of two versions.
-  int _calculateStreak(List<Map<String, dynamic>> workouts) {
-    if (workouts.isEmpty) return 0;
-
-    final workoutDates = <DateTime>{};
-    for (var w in workouts) {
-      try {
-        final d = DateTime.parse(w['date'] as String);
-        workoutDates.add(DateTime(d.year, d.month, d.day));
-      } catch (_) {}
-    }
-
-    final frozenDates = <DateTime>{};
-    for (final dateStr in SettingsStorage.getFrozenDates()) {
-      try {
-        final d = DateTime.parse(dateStr);
-        frozenDates.add(DateTime(d.year, d.month, d.day));
-      } catch (_) {}
-    }
-
-    // only look back 30 days for rest-day lookup, going further doesn't
-    // really matter since streaks that long would've already broken
-    // if there was a real gap
-    final restDays = <DateTime>{};
-    if (_activeProgram != null && _activeProgram!['schedule'] != null) {
-      final schedule = Map<String, dynamic>.from(_activeProgram!['schedule'] as Map);
-      final today = DateTime.now();
-      for (int i = 0; i < 30; i++) {
-        final d = today.subtract(Duration(days: i));
-        final dayName = _fullDays[d.weekday - 1];
-        if (schedule[dayName] == null) {
-          restDays.add(DateTime(d.year, d.month, d.day));
-        }
-      }
-    }
-
-    final today = DateTime.now();
-    DateTime check = DateTime(today.year, today.month, today.day);
-    int streak = 0;
-
-    if (!workoutDates.contains(check) && !frozenDates.contains(check) && !restDays.contains(check)) {
-      check = check.subtract(const Duration(days: 1));
-    }
-
-    while (workoutDates.contains(check) || frozenDates.contains(check) || restDays.contains(check)) {
-      if (workoutDates.contains(check)) {
-        streak++;
-      }
-      check = check.subtract(const Duration(days: 1));
-    }
-
-    return streak;
-  }
-
-  List<double> _getWeeklyData(List<Map<String, dynamic>> workouts) {
-    final weeklyProgress = List<double>.filled(7, 0.0);
-    if (workouts.isEmpty) return weeklyProgress;
-    final today = DateTime.now();
-    final startOfWeek = DateTime(
-      today.year,
-      today.month,
-      today.day - (today.weekday - 1),
-    );
-    for (var workout in workouts) {
-      try {
-        final workoutDate = DateTime.parse(workout['date'] as String);
-        if (workoutDate.isAfter(startOfWeek.subtract(const Duration(days: 1))) &&
-            workoutDate.isBefore(startOfWeek.add(const Duration(days: 7)))) {
-          final dayIndex = workoutDate.weekday - 1;
-          // this is just on/off (1.0 or 0.0), not actual volume — fine for
-          // now since the chart is just showing "did you train that day"
-          if (dayIndex >= 0 && dayIndex < 7) weeklyProgress[dayIndex] = 1.0;
-        }
-      } catch (_) {}
-    }
-    return weeklyProgress;
-  }
-
-  String _formatCalories(int calories) =>
-      calories >= 1000 ? "${(calories / 1000).toStringAsFixed(1)}k" : "$calories";
+  String _formatCalories(int calories) => calories >= 1000
+      ? '${(calories / 1000).toStringAsFixed(1)}k'
+      : '$calories';
 
   Widget _buildAnimatedSection({required Widget child}) {
     return AnimatedOpacity(
       opacity: _isLoaded ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 600),
       curve: Curves.easeOutCubic,
       child: AnimatedSlide(
-        offset: _isLoaded ? Offset.zero : const Offset(0, 0.2),
-        duration: const Duration(milliseconds: 800),
+        offset: _isLoaded ? Offset.zero : const Offset(0, 0.12),
+        duration: const Duration(milliseconds: 600),
         curve: Curves.easeOutCubic,
         child: child,
       ),
@@ -251,10 +163,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final showStreakReminder =
+        _showReminders && !_completedToday && !_isTodayRestDay && currentStreak > 0;
+
     return Scaffold(
       backgroundColor: PUI.bg,
       body: Stack(
-        children: [
+        children: <Widget>[
           const AuroraBackground(),
           SafeArea(
             child: RefreshIndicator(
@@ -265,8 +180,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
                     _buildAnimatedSection(child: _buildHeader()),
+                    if (showStreakReminder) ...<Widget>[
+                      const SizedBox(height: 16),
+                      _buildAnimatedSection(child: _buildReminderBanner()),
+                    ],
                     const SizedBox(height: 20),
                     _buildAnimatedSection(child: _buildMissionCard()),
                     const SizedBox(height: 16),
@@ -292,26 +211,39 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _getGreeting().toUpperCase(),
-                style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 2.2, color: Colors.white.withOpacity(0.4)),
-              ),
-              const SizedBox(height: 6),
-              GradientText(_userName, size: 32),
-            ],
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  _getGreeting().toUpperCase(),
+                  style: PUI.text(
+                    size: 11,
+                    weight: FontWeight.w600,
+                    letterSpacing: 2.2,
+                    color: Colors.white.withValues(alpha: 0.4),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                GradientText(_userName, size: 32),
+              ],
+            ),
           ),
           SizedBox(
             width: 54,
             height: 54,
             child: Stack(
               alignment: Alignment.center,
-              children: [
-                CustomPaint(size: const Size(54, 54), painter: _RingPainter(progress)),
-                Text("$weeklyWorkoutCount/7", style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+              children: <Widget>[
+                CustomPaint(
+                  size: const Size(54, 54),
+                  painter: _RingPainter(progress),
+                ),
+                Text(
+                  '$weeklyWorkoutCount/7',
+                  style: PUI.text(size: 11, weight: FontWeight.w700),
+                ),
               ],
             ),
           ),
@@ -320,47 +252,131 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildReminderBanner() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Glass(
+        radius: 18,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: <Widget>[
+            const Icon(
+              Icons.notifications_active_outlined,
+              color: PUI.amber,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Keep your $currentStreak-day streak alive — train or freeze today!',
+                style: PUI.text(
+                  size: 12,
+                  weight: FontWeight.w600,
+                  color: Colors.white.withValues(alpha: 0.85),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMissionCard() {
     final rest = _isTodayRestDay;
-    return Pressable(
-      onTap: () {
-        if (rest) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Rest day! Enjoy your recovery. 🧘")),
-          );
-        } else {
-          _showVibeCheck(_todaysExercises, _todaysWorkoutName ?? "Workout");
-        }
-      },
-      child: Glass(
-        radius: 28,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("TODAY'S MISSION", style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 2.2, color: PUI.mint.withOpacity(0.9))),
-                    const SizedBox(height: 8),
-                    Text(rest ? "Recovery Day 🧘" : (_todaysWorkoutName ?? "Quick Workout"), style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
-                    const SizedBox(height: 4),
-                    Text(rest ? "You earned it. Recover and grow." : "Tap to begin your session", style: GoogleFonts.outfit(fontSize: 12, color: Colors.white.withOpacity(0.5))),
-                  ],
-                ),
+    final missionTitle = rest
+        ? 'Recovery Day 🧘'
+        : (_todaysWorkoutName ?? 'Quick Workout');
+    final subtitle = rest
+        ? 'You earned it. Recover and grow.'
+        : (_completedToday
+            ? 'Completed today — tap for a bonus session'
+            : 'Tap to begin your session');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Pressable(
+        onTap: () {
+          if (rest) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Rest day! Enjoy your recovery. 🧘'),
               ),
-              Container(
-                width: 56, height: 56,
-                decoration: BoxDecoration(
-                  gradient: rest ? null : const LinearGradient(colors: [PUI.primary, PUI.primaryDeep]),
-                  color: rest ? Colors.white.withOpacity(0.08) : null,
-                  shape: BoxShape.circle,
-                  boxShadow: rest ? [] : [BoxShadow(color: PUI.primary.withOpacity(0.5), blurRadius: 16)],
+            );
+          } else {
+            _showVibeCheck(
+              _todaysExercises,
+              _todaysWorkoutName ?? 'Quick Workout',
+            );
+          }
+        },
+        child: Glass(
+          radius: 28,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        "TODAY'S MISSION",
+                        style: PUI.text(
+                          size: 11,
+                          weight: FontWeight.w700,
+                          letterSpacing: 2.2,
+                          color: PUI.mint.withValues(alpha: 0.9),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        missionTitle,
+                        style: PUI.text(size: 22, weight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: PUI.text(
+                          size: 12,
+                          color: Colors.white.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Icon(rest ? Icons.self_improvement : Icons.play_arrow, color: Colors.white, size: 26),
-              ),
-            ],
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: rest
+                        ? null
+                        : const LinearGradient(
+                            colors: <Color>[PUI.primary, PUI.primaryDeep],
+                          ),
+                    color: rest ? Colors.white.withValues(alpha: 0.08) : null,
+                    shape: BoxShape.circle,
+                    boxShadow: rest
+                        ? const <BoxShadow>[]
+                        : <BoxShadow>[
+                            BoxShadow(
+                              color: PUI.primary.withValues(alpha: 0.5),
+                              blurRadius: 16,
+                            ),
+                          ],
+                  ),
+                  child: Icon(
+                    rest
+                        ? Icons.self_improvement
+                        : (_completedToday
+                            ? Icons.check_rounded
+                            : Icons.play_arrow),
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -371,48 +387,100 @@ class _HomeScreenState extends State<HomeScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Row(
-        children: [
-          _buildStatTile("WORKOUTS", "$totalWorkouts", Icons.fitness_center, PUI.primary),
+        children: <Widget>[
+          _buildStatTile(
+            'WORKOUTS',
+            '$totalWorkouts',
+            Icons.fitness_center,
+            PUI.primary,
+          ),
           const SizedBox(width: 10),
-          _buildStatTile("STREAK", "$currentStreak", Icons.local_fire_department, PUI.flame, valueGradient: [PUI.flame, PUI.amber]),
+          _buildStatTile(
+            'STREAK',
+            '$currentStreak',
+            Icons.local_fire_department,
+            PUI.flame,
+            valueGradient: const <Color>[PUI.flame, PUI.amber],
+          ),
           const SizedBox(width: 10),
-          _buildStatTile("KCAL", _formatCalories(totalCalories), Icons.bolt, PUI.amber),
+          _buildStatTile(
+            'KCAL',
+            _formatCalories(totalCalories),
+            Icons.bolt,
+            PUI.amber,
+          ),
           const SizedBox(width: 10),
-          // this one opens the recovery bank sheet, the others are read-only
-          _buildStatTile("COINS", "$recoveryCoins", Icons.shield, PUI.mint, onTap: _showRecoveryBankPopup),
+          _buildStatTile(
+            'COINS',
+            '$recoveryCoins',
+            Icons.shield,
+            PUI.mint,
+            onTap: _showRecoveryBankPopup,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStatTile(String label, String value, IconData icon, Color accent, {List<Color>? valueGradient, VoidCallback? onTap}) {
+  Widget _buildStatTile(
+    String label,
+    String value,
+    IconData icon,
+    Color accent, {
+    List<Color>? valueGradient,
+    VoidCallback? onTap,
+  }) {
     final content = Glass(
       radius: 20,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: accent, size: 18, shadows: [Shadow(color: accent.withOpacity(0.8), blurRadius: 10)]),
+          children: <Widget>[
+            Icon(
+              icon,
+              color: accent,
+              size: 18,
+              shadows: <Shadow>[
+                Shadow(
+                  color: accent.withValues(alpha: 0.8),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
             valueGradient != null
                 ? GradientText(value, size: 20, colors: valueGradient)
-                : Text(value, style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+                : Text(
+                    value,
+                    style: PUI.text(size: 20, weight: FontWeight.w800),
+                  ),
             const SizedBox(height: 2),
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
-              child: Text(label, maxLines: 1, style: GoogleFonts.outfit(fontSize: 9, fontWeight: FontWeight.w600, letterSpacing: 1.2, color: Colors.white.withOpacity(0.4))),
+              child: Text(
+                label,
+                maxLines: 1,
+                style: PUI.text(
+                  size: 9,
+                  weight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                  color: Colors.white.withValues(alpha: 0.4),
+                ),
+              ),
             ),
           ],
         ),
       ),
     );
-    return Expanded(child: onTap == null ? content : Pressable(onTap: onTap, child: content));
+    return Expanded(
+      child: onTap == null ? content : Pressable(onTap: onTap, child: content),
+    );
   }
 
   Widget _buildWeeklyChart() {
-    final days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const days = <String>['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     final todayIndex = DateTime.now().weekday - 1;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -422,40 +490,80 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            children: <Widget>[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("THIS WEEK", style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.8, color: Colors.white.withOpacity(0.6))),
+                children: <Widget>[
+                  Text(
+                    'THIS WEEK',
+                    style: PUI.text(
+                      size: 12,
+                      weight: FontWeight.w700,
+                      letterSpacing: 1.8,
+                      color: Colors.white.withValues(alpha: 0.6),
+                    ),
+                  ),
                   Pressable(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const StatisticsScreen())),
-                    child: Text("SEE ALL", style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: PUI.mint)),
+                    onTap: () => unawaited(
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => const StatisticsScreen(),
+                        ),
+                      ),
+                    ),
+                    child: Text(
+                      'SEE ALL',
+                      style: PUI.text(
+                        size: 11,
+                        weight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                        color: PUI.mint,
+                      ),
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 24),
-              // this is basically a simplified version of the chart on the
-              // stats screen — just on/off bars, no real height gradient.
-              // fine here since this is a glance-and-go widget
               SizedBox(
                 height: 110,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
-                  children: List.generate(7, (i) {
+                  children: List<Widget>.generate(7, (int i) {
                     final active = weeklyData[i] > 0;
                     final isToday = i == todayIndex;
                     return Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 5.0),
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 900),
+                          duration: const Duration(milliseconds: 700),
                           curve: Curves.easeOutCubic,
                           height: active ? (isToday ? 105 : 75) : 12,
                           decoration: BoxDecoration(
-                            gradient: active ? const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [PUI.primary, PUI.primaryDeep]) : null,
-                            color: active ? null : Colors.white.withOpacity(0.06),
+                            gradient: active
+                                ? const LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: <Color>[
+                                      PUI.primary,
+                                      PUI.primaryDeep,
+                                    ],
+                                  )
+                                : null,
+                            color: active
+                                ? null
+                                : Colors.white.withValues(alpha: 0.06),
                             borderRadius: BorderRadius.circular(10),
-                            boxShadow: (active && isToday) ? [BoxShadow(color: PUI.primary.withOpacity(0.55), blurRadius: 16)] : [],
+                            boxShadow: (active && isToday)
+                                ? <BoxShadow>[
+                                    BoxShadow(
+                                      color: PUI.primary.withValues(
+                                        alpha: 0.55,
+                                      ),
+                                      blurRadius: 16,
+                                    ),
+                                  ]
+                                : const <BoxShadow>[],
                           ),
                         ),
                       ),
@@ -465,11 +573,20 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 10),
               Row(
-                children: List.generate(7, (i) {
+                children: List<Widget>.generate(7, (int i) {
                   final isToday = i == todayIndex;
                   return Expanded(
                     child: Center(
-                      child: Text(days[i], style: GoogleFonts.outfit(fontSize: 10, fontWeight: isToday ? FontWeight.w800 : FontWeight.w500, color: isToday ? PUI.mint : Colors.white.withOpacity(0.35))),
+                      child: Text(
+                        days[i],
+                        style: PUI.text(
+                          size: 10,
+                          weight: isToday ? FontWeight.w800 : FontWeight.w500,
+                          color: isToday
+                              ? PUI.mint
+                              : Colors.white.withValues(alpha: 0.35),
+                        ),
+                      ),
                     ),
                   );
                 }),
@@ -486,41 +603,76 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("QUICK ACTIONS", style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.8, color: Colors.white.withOpacity(0.6))),
+        children: <Widget>[
+          Text(
+            'QUICK ACTIONS',
+            style: PUI.text(
+              size: 12,
+              weight: FontWeight.w700,
+              letterSpacing: 1.8,
+              color: Colors.white.withValues(alpha: 0.6),
+            ),
+          ),
           const SizedBox(height: 14),
-          // full-width card for "My Workouts" since it's used way more than
-          // the others, wanted it to stand out from the 2x2 grid below
           Pressable(
             onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const MyWorkoutsScreen()));
+              unawaited(
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const MyWorkoutsScreen(),
+                  ),
+                ),
+              );
             },
             child: Glass(
               radius: 22,
               child: Padding(
                 padding: const EdgeInsets.all(18),
                 child: Row(
-                  children: [
+                  children: <Widget>[
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [PUI.primary.withOpacity(0.35), PUI.primary.withOpacity(0.1)]),
+                        gradient: LinearGradient(
+                          colors: <Color>[
+                            PUI.primary.withValues(alpha: 0.35),
+                            PUI.primary.withValues(alpha: 0.1),
+                          ],
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(Icons.folder_outlined, color: PUI.primary, size: 20),
+                      child: const Icon(
+                        Icons.folder_outlined,
+                        color: PUI.primary,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("My Workouts", style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                        children: <Widget>[
+                          Text(
+                            'My Workouts',
+                            style: PUI.text(size: 16, weight: FontWeight.w800),
+                          ),
                           const SizedBox(height: 2),
-                          Text("View your custom routines", style: GoogleFonts.outfit(fontSize: 12, color: Colors.white.withOpacity(0.5))),
+                          Text(
+                            'View, edit, or start your custom routines',
+                            style: PUI.text(
+                              size: 12,
+                              color: Colors.white.withValues(alpha: 0.5),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white.withOpacity(0.4)),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Colors.white.withValues(alpha: 0.4),
+                    ),
                   ],
                 ),
               ),
@@ -528,23 +680,61 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
           Row(
-            children: [
-              _buildActionCard("Start Workout", Icons.play_circle_fill, PUI.primary, () => _showVibeCheck(null, "Quick Workout")),
+            children: <Widget>[
+              _buildActionCard(
+                'Start Workout',
+                Icons.play_circle_fill,
+                PUI.primary,
+                () => _showVibeCheck(null, 'Quick Workout'),
+              ),
               const SizedBox(width: 12),
-              // reload after coming back in case they added exercises to a
-              // custom plan while they were in there
-              _buildActionCard("Custom Plan", Icons.edit_note, PUI.pink, () async {
-                await Navigator.push(context, MaterialPageRoute(builder: (context) => const WorkoutBuilderScreen()));
-                _loadData();
-              }),
+              _buildActionCard(
+                'Custom Plan',
+                Icons.edit_note,
+                PUI.pink,
+                () {
+                  unawaited(
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => const WorkoutBuilderScreen(),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ],
           ),
           const SizedBox(height: 12),
           Row(
-            children: [
-              _buildActionCard("Weekly Split", Icons.calendar_month, PUI.mint, () => Navigator.push(context, MaterialPageRoute(builder: (context) => CalendarScreen()))),
+            children: <Widget>[
+              _buildActionCard(
+                'Weekly Split',
+                Icons.calendar_month,
+                PUI.mint,
+                () => unawaited(
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const CalendarScreen(),
+                    ),
+                  ),
+                ),
+              ),
               const SizedBox(width: 12),
-              _buildActionCard("My Progress", Icons.trending_up, PUI.amber, () => Navigator.push(context, MaterialPageRoute(builder: (context) => const StatisticsScreen()))),
+              _buildActionCard(
+                'My Progress',
+                Icons.trending_up,
+                PUI.amber,
+                () => unawaited(
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const StatisticsScreen(),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ],
@@ -552,7 +742,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildActionCard(String title, IconData icon, Color color, VoidCallback? onTap) {
+  Widget _buildActionCard(
+    String title,
+    IconData icon,
+    Color color,
+    VoidCallback? onTap,
+  ) {
     return Expanded(
       child: Pressable(
         onTap: onTap,
@@ -562,23 +757,35 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+              children: <Widget>[
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
+                  children: <Widget>[
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [color.withOpacity(0.35), color.withOpacity(0.1)]),
+                        gradient: LinearGradient(
+                          colors: <Color>[
+                            color.withValues(alpha: 0.35),
+                            color.withValues(alpha: 0.1),
+                          ],
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(icon, color: color, size: 20),
                     ),
-                    Icon(Icons.arrow_forward_ios, size: 11, color: Colors.white.withOpacity(0.25)),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 11,
+                      color: Colors.white.withValues(alpha: 0.25),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text(title, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
+                Text(
+                  title,
+                  style: PUI.text(size: 14, weight: FontWeight.w700),
+                ),
               ],
             ),
           ),
@@ -587,45 +794,87 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // "Recovery Bank" = spend a coin to freeze today's date so a missed
-  // workout doesn't kill the streak. Coins presumably come from
-  // completing workouts (earned somewhere in the workout flow, not this file)
   void _showRecoveryBankPopup() {
-    final todayStr = "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+    final todayStr = formatDateKey(DateTime.now());
     final isAlreadyFrozen = SettingsStorage.isDateFrozen(todayStr);
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: PUI.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-      builder: (context) {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: PUI.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        builder: (BuildContext sheetContext) {
         return Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+            children: <Widget>[
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               const SizedBox(height: 24),
               Container(
-                width: 80, height: 80,
-                decoration: BoxDecoration(color: PUI.mint.withOpacity(0.12), shape: BoxShape.circle),
-                child: Icon(Icons.shield, color: PUI.mint, size: 40, shadows: [Shadow(color: PUI.mint.withOpacity(0.8), blurRadius: 14)]),
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: PUI.mint.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.shield,
+                  color: PUI.mint,
+                  size: 40,
+                  shadows: <Shadow>[
+                    Shadow(
+                      color: PUI.mint.withValues(alpha: 0.8),
+                      blurRadius: 14,
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
-              Text("Recovery Bank", style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
+              Text(
+                'Recovery Bank',
+                style: PUI.text(size: 22, weight: FontWeight.w800),
+              ),
               const SizedBox(height: 8),
-              Text("You have $recoveryCoins Recovery Coins", style: GoogleFonts.outfit(fontSize: 15, color: Colors.white.withOpacity(0.6))),
+              Text(
+                'You have $recoveryCoins Recovery Coins',
+                style: PUI.text(
+                  size: 15,
+                  color: Colors.white.withValues(alpha: 0.6),
+                ),
+              ),
               const SizedBox(height: 24),
               if (isAlreadyFrozen)
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: PUI.mint.withOpacity(0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: PUI.mint.withOpacity(0.3))),
+                  decoration: BoxDecoration(
+                    color: PUI.mint.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: PUI.mint.withValues(alpha: 0.3),
+                    ),
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
+                    children: <Widget>[
                       const Icon(Icons.check_circle, color: PUI.mint),
                       const SizedBox(width: 8),
-                      Text("Today's streak is frozen! ❄️", style: GoogleFonts.outfit(color: PUI.mint, fontWeight: FontWeight.w700)),
+                      Text(
+                        "Today's streak is frozen! ❄️",
+                        style: PUI.text(
+                          color: PUI.mint,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
                     ],
                   ),
                 )
@@ -634,15 +883,23 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: recoveryCoins > 0 ? () => _spendCoinAndFreeze(todayStr) : null,
+                    onPressed: recoveryCoins > 0
+                        ? () => _spendCoinAndFreeze(sheetContext, todayStr)
+                        : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: recoveryCoins > 0 ? PUI.primary : Colors.grey.shade800,
+                      backgroundColor: recoveryCoins > 0
+                          ? PUI.primary
+                          : Colors.grey.shade800,
                       disabledBackgroundColor: Colors.grey.shade800,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                     child: Text(
-                      recoveryCoins > 0 ? "Freeze Streak (1 Coin)" : "Not enough coins",
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+                      recoveryCoins > 0
+                          ? 'Freeze Streak (1 Coin)'
+                          : 'Not enough coins',
+                      style: PUI.text(size: 16, weight: FontWeight.w700),
                     ),
                   ),
                 ),
@@ -651,34 +908,40 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
+      ),
     );
   }
 
-  Future<void> _spendCoinAndFreeze(String dateStr) async {
-    final success = await SettingsStorage.spendRecoveryCoin();
-    if (!success) return; // race condition guard, shouldn't really happen since button is disabled at 0 coins but just in case
-    await SettingsStorage.freezeDate(dateStr);
+  Future<void> _spendCoinAndFreeze(
+    BuildContext sheetContext,
+    String dateStr,
+  ) async {
+    final navigator = Navigator.of(sheetContext);
+    final messenger = ScaffoldMessenger.of(context);
+
+    final success = await SettingsStorage.spendCoinAndFreezeDate(dateStr);
+    if (!success) return;
     if (!mounted) return;
-    Navigator.pop(context);
-    setState(() => recoveryCoins = SettingsStorage.getRecoveryCoins());
 
-    // let other screens (stats screen mainly) know the freeze happened so
-    // their streak numbers stay in sync with this one
-    WorkoutEventBus.instance.notifySettingsChanged();
-
-    ScaffoldMessenger.of(context).showSnackBar(
+    navigator.pop();
+    messenger.showSnackBar(
       SnackBar(
-        content: const Row(children: [Icon(Icons.ac_unit, color: Colors.white), SizedBox(width: 8), Text("Streak frozen for today! ❄️")]),
+        content: Row(
+          children: <Widget>[
+            const Icon(Icons.ac_unit, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              'Streak frozen for today! ❄️',
+              style: PUI.text(weight: FontWeight.w700),
+            ),
+          ],
+        ),
         backgroundColor: PUI.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
 }
 
-// simple radial progress ring for the weekly completion indicator up top.
-// went with CustomPainter instead of a package since it's just one arc
 class _RingPainter extends CustomPainter {
   final double progress;
   _RingPainter(this.progress);
@@ -686,15 +949,30 @@ class _RingPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    final bgPaint = Paint()..color = Colors.white.withOpacity(0.08)..style = PaintingStyle.stroke..strokeWidth = 5..strokeCap = StrokeCap.round;
+    final bgPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.08)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
     canvas.drawArc(rect, 0, 2 * pi, false, bgPaint);
     if (progress <= 0) return;
     final fillPaint = Paint()
-      ..shader = SweepGradient(colors: [PUI.primary, PUI.mint]).createShader(rect)
-      ..style = PaintingStyle.stroke..strokeWidth = 5..strokeCap = StrokeCap.round;
-    canvas.drawArc(rect, -pi / 2, 2 * pi * progress.clamp(0.0, 1.0), false, fillPaint);
+      ..shader = const SweepGradient(
+        colors: <Color>[PUI.primary, PUI.mint],
+      ).createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      rect,
+      -pi / 2,
+      2 * pi * progress.clamp(0.0, 1.0),
+      false,
+      fillPaint,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _RingPainter oldDelegate) => oldDelegate.progress != progress;
+  bool shouldRepaint(covariant _RingPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

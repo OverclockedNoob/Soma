@@ -1,27 +1,17 @@
 import 'package:flutter/material.dart';
-import '../services/exercisedb_service.dart';
+
+import '../models/workout_models.dart';
+import '../services/exercise_service.dart';
 
 class ExerciseData {
-  /// Returns the full list of exercises from the API cache
-  static List<Map<String, dynamic>> get allExercises {
-    final apiExercises = ExerciseDbService.getCached();
+  ExerciseData._();
 
-    final merged = apiExercises.map((ex) {
-      return {
-        'name': ex.name,
-        'muscle': ex.muscleCategory,
-        'difficulty': ex.difficulty,
-        'gifUrl': ex.gifUrl,
-        'instructions': ex.instructions,
-        'equipment': ex.equipment,
-        'target': ex.target,
-      };
-    }).toList();
+  /// Pre-sorted, immutable list of all 500 local exercises (O(1) access).
+  static List<ExerciseItem> get items => ExerciseService.allItems;
 
-    // Sort alphabetically
-    merged.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
-    return merged;
-  }
+  /// Legacy map view backed by the memoized cache in [ExerciseService].
+  static List<Map<String, dynamic>> get allExercises =>
+      ExerciseService.allLegacyMaps;
 
   static Color getMuscleColor(String? muscle) {
     switch (muscle) {
@@ -32,15 +22,15 @@ class ExerciseData {
       case 'Legs':
         return const Color(0xFFFFB800);
       case 'Arms':
-        return const Color(0xFF6C5CE7);
+        return const Color(0xFF8B7CFF);
       case 'Shoulders':
-        return const Color(0xFF00E5FF); // New cyan for shoulders
+        return const Color(0xFF3DDCB8);
       case 'Core':
         return const Color(0xFF9B59B6);
       case 'Cardio':
-        return const Color(0xFFE91E63);
+        return const Color(0xFFFF6B4A);
       default:
-        return const Color(0xFF6C5CE7);
+        return const Color(0xFF8B7CFF);
     }
   }
 
@@ -55,7 +45,7 @@ class ExerciseData {
       case 'Arms':
         return Icons.fitness_center;
       case 'Shoulders':
-        return Icons.fitness_center;
+        return Icons.sports_gymnastics;
       case 'Core':
         return Icons.self_improvement;
       case 'Cardio':
@@ -91,9 +81,6 @@ class ExerciseData {
     }
   }
 
-  static int getCountForCategory(String category) {
-    final exercises = allExercises;
-    if (category == 'All') return exercises.length;
-    return exercises.where((e) => e['muscle'] == category).length;
-  }
+  static int getCountForCategory(String category) =>
+      ExerciseService.countForCategory(category);
 }

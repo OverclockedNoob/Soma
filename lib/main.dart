@@ -1,32 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'services/storage_services.dart';
-import 'services/exercisedb_service.dart';
+import 'core/premium_ui.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
-import 'screens/stats_screen.dart';
 import 'screens/settings_screen.dart';
-import 'core/premium_ui.dart';
+import 'screens/stats_screen.dart';
+import 'services/exercise_service.dart';
+import 'services/storage_services.dart';
 
-void main() async {
-  // Needed before touching any plugins (Hive, haptics, etc.) since we're async here
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Hive.initFlutter();
 
-  // Order matters a little here — settings and workouts don't depend on each other,
-  // but I'm keeping them sequential for now since Hive boxes can be finicky
-  // if opened concurrently. Can revisit with Future.wait if startup feels slow.
   await WorkoutStorage.init();
   await CustomWorkoutStorage.init();
   await SettingsStorage.init();
   await ProgramStorage.init();
 
-  // Loads all ~500 exercises from the bundled JSON — no network call, so this
-  // should be near-instant even on first launch.
-  await ExerciseDbService.init();
+  // Loads all 500 exercises from the bundled local JSON asset.
+  await ExerciseService.init();
 
   runApp(const WorkoutApp());
 }
@@ -40,14 +37,15 @@ class WorkoutApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Soma',
       theme: ThemeData(
+        fontFamily: 'Outfit',
         colorScheme: ColorScheme.fromSeed(
           seedColor: PUI.primary,
-          brightness: Brightness.dark, // app is dark-mode only for now
+          brightness: Brightness.dark,
         ),
         scaffoldBackgroundColor: PUI.bg,
         useMaterial3: true,
         appBarTheme: AppBarTheme(
-          backgroundColor: Colors.transparent, // let screen backgrounds show through
+          backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
           titleTextStyle: PUI.text(size: 20, weight: FontWeight.w800),
@@ -67,9 +65,8 @@ class WorkoutApp extends StatelessWidget {
   }
 }
 
-/// Handles the bottom tab bar and swapping between the four main sections
-/// of the app. Using an IndexedStack instead of a plain if/switch so each
-/// tab keeps its scroll position and state when you jump around.
+/// Hosts the bottom tab bar and keeps each top-level tab mounted inside an
+/// [IndexedStack] so scroll positions are preserved when switching tabs.
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
 
@@ -80,22 +77,18 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
 
-  // Built once in initState so we're not recreating screen widgets on every rebuild
-  late final List<Widget> _pages;
-
-  @override
-  void initState() {
-    super.initState();
-    _pages = const [
-      HomeScreen(),
-      ExerciseLibraryScreen(),
-      StatisticsScreen(),
-      SettingsScreen(),
-    ];
-  }
+  static const List<Widget> _pages = <Widget>[
+    HomeScreen(),
+    ExerciseLibraryScreen(),
+    StatisticsScreen(),
+    SettingsScreen(),
+  ];
 
   void _onTabSelected(int index) {
-    HapticFeedback.lightImpact(); // small tactile confirmation on tap
+    if (SettingsStorage.getSoundEffects()) {
+      unawaited(SystemSound.play(SystemSoundType.click));
+    }
+    unawaited(HapticFeedback.lightImpact());
     setState(() => _selectedIndex = index);
   }
 
