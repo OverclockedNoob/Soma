@@ -66,6 +66,10 @@ void main() {
   testWidgets('WorkoutApp shows loading spinner, startup error screen, and recovers on retry', (
     WidgetTester tester,
   ) async {
+    final previousRethrow = FutureBuilder.debugRethrowError;
+    FutureBuilder.debugRethrowError = false;
+    addTearDown(() => FutureBuilder.debugRethrowError = previousRethrow);
+
     final firstAttempt = Completer<void>();
     int attempts = 0;
 
@@ -89,10 +93,9 @@ void main() {
     expect(find.text("Couldn't start Soma"), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
 
-    // Tap Try again and verify recovery into MainNavigationScreen.
+    // Tap Try again and settle through Future completion + HomeScreen intro timer.
     await tester.tap(find.text('Try again'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
 
     expect(attempts, 2);
     expect(find.text('Champion'), findsOneWidget);

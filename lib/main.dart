@@ -167,7 +167,7 @@ class _StartupErrorScreen extends StatelessWidget {
       backgroundColor: PUI.bg,
       body: SafeArea(
         child: Center(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
