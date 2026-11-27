@@ -1,60 +1,43 @@
 # Soma
 
-**Soma** is an offline-first, privacy-focused adaptive fitness & workout tracker built with Flutter. All **500 exercises**, instructions, target & secondary muscles, equipment tags, difficulty tiers, typography (`Outfit`), and user logs live **100% locally on your device**—zero API keys, zero cloud accounts, and zero internet connection required.
+An offline workout tracker built with Flutter.
 
----
+I wanted to log sets without making an account first, and without the app misbehaving when the gym has no signal. Soma keeps everything on your phone. It has no backend, so there's nothing to sign into, and it doesn't need an internet connection or any API keys.
 
-## Key Features
+## Download
 
-- **500 Bundled Local Exercises** — Instant offline search and filtering across Chest, Back, Legs, Arms, Shoulders, Core, and Cardio with step-by-step instructions, primary/secondary muscle breakdown, equipment requirements, and real Beginner / Intermediate / Advanced difficulty ratings.
-- **Vibe Check (Adaptive Volume)** — Before every session, choose **Peak Energy**, **Normal**, or **Low Energy** (`-30%` sets survival mode) so you keep showing up even on tough days.
-- **Gym Tetris (Equipment-Aware Swaps)** — Equipment occupied at the gym? Swap any exercise mid-workout with up to 5 local alternatives targeting the same muscle group on different equipment—preserving your completed sets.
-- **Custom Routines & Multi-Week Splits** — Create, edit, and delete custom workout routines, schedule multi-week training splits with rest days, and switch active programs anytime.
-- **Unified Streak & Recovery Bank** — Earn Recovery Coins every 5 workouts and spend a coin to freeze a missed day so illness or travel never wipes out hard-earned consistency.
-- **Analytics & Personal Records** — Track lifetime sets, reps, lifted volume (`kg`), 7-day volume bar charts, muscle distribution, and per-exercise max weight & estimated 1RM (`Epley`).
-- **Full JSON Backup & Restore** — Export workouts, custom routines, splits, and profile settings to a portable JSON file or clipboard and restore anytime across devices.
+Grab an APK from the [Releases](https://github.com/OverclockedNoob/Soma/releases) page.
 
----
+- `Soma-v1.0.0-arm64-v8a.apk` works on most phones from the last several years.
+- `Soma-v1.0.0.apk` is the universal build, for older devices or emulators.
 
-## Tech Stack & Architecture
+It isn't on the Play Store, so you'll need to allow installs from unknown sources.
 
-- **Framework:** Flutter (`>=3.44.0`, Dart `^3.12.0`)
-- **Local Persistence:** `hive` + `hive_flutter` (typed domain models in `lib/models/workout_models.dart`)
-- **State Synchronization:** `WorkoutEventBus` (`ValueNotifier<int>`) automatically notifies subscribed screens whenever storage mutates
-- **Offline Assets:**
-  - `assets/exercises.json` — 500 curated exercises loaded once at startup via `ExerciseService`
-  - `assets/fonts/Outfit.ttf` — Variable `Outfit` font (`OFL-1.1`) bundled locally for zero-network rendering
+## Features
 
-```text
-lib/
-├── core/
-│   ├── event_bus.dart          # Reactive storage revision notifier
-│   └── premium_ui.dart         # Offline Outfit typography & glassmorphic UI primitives
-├── data/
-│   └── exercise_data.dart      # Memoized UI facade & muscle palette/icons
-├── models/
-│   └── workout_models.dart     # Typed models & UTC calendar-day helpers
-├── screens/                    # Home, Library, Picker, Builder, Active Workout, Summary,
-│                               # My Workouts, Schedule, Split Builder, Stats, Settings
-├── services/
-│   ├── exercise_service.dart   # 500-exercise local loader, O(1) lookup & Gym Tetris engine
-│   ├── streak_service.dart     # Shared DST-safe streak & Recovery Bank calculator
-│   ├── storage_services.dart   # Hive persistence for workouts, routines, splits & settings
-│   └── backup_service.dart     # Cross-platform JSON backup export & restore
-├── widgets/
-│   └── vibe_check_sheet.dart   # Pre-workout energy & volume-scaling sheet
-└── main.dart                   # App bootstrap & bottom navigation shell
-```
+**Exercise library.** 500 exercises are bundled in the app. You can search and filter by muscle group, and each one has instructions, primary and secondary muscles, the equipment it needs, and a difficulty level.
 
----
+**Vibe Check.** Before a workout, tell Soma how you're feeling: Peak Energy, Normal, or Low Energy. On a low day it cuts your sets by 30% so you still show up instead of skipping. The numbers are just what felt right in testing.
 
-## Getting Started
+**Gym Tetris.** If someone is on the machine you need, swap the exercise mid-workout. Soma suggests up to five alternatives for the same muscle group using different equipment, and the sets you've already done stay logged.
 
-### Prerequisites
+**Routines and splits.** Build your own routines, edit or delete them later, and set up a multi-week split with rest days. You can switch programs whenever you like.
 
-- Flutter SDK `>=3.44.0` (Dart `>=3.12.0`)
+**Streaks and Recovery Coins.** You earn a coin every 5 workouts. Spend one to cover a missed day if you're sick or traveling, so the streak doesn't reset.
 
-### Run Locally
+**Stats.** Lifetime sets, reps and volume, a 7-day volume chart, muscle distribution, and personal records with estimated one-rep max (Epley formula).
+
+**Backup and restore.** Export your workouts, routines, splits and settings to a JSON file or the clipboard, and import them on another phone. There's no cloud sync, so this is the only way to move your data. Back up now and then.
+
+## Limitations
+
+- Android only. I haven't built or tested it on iOS.
+- Dark theme only.
+- Everything is stored on the device. If you uninstall without exporting, your data is gone.
+
+## Running from source
+
+You need Flutter `>=3.44.0` (Dart `>=3.12.0`). There's no `.env` file or API key setup.
 
 ```bash
 git clone https://github.com/OverclockedNoob/Soma.git
@@ -63,18 +46,16 @@ flutter pub get
 flutter run
 ```
 
-No `.env` file or API key setup is required.
-
-### Analyze & Run Tests
+Checks:
 
 ```bash
 flutter analyze
 flutter test
 ```
 
-### Production Android Signing (Optional)
+### Release signing (optional)
 
-Release builds automatically use `android/key.properties` when present (and fall back to debug signing for local/CI verification builds):
+Release builds use `android/key.properties` if it exists, and fall back to debug signing if it doesn't. That fallback keeps CI and local builds working, but it isn't suitable for publishing.
 
 ```properties
 storePassword=<your-keystore-password>
@@ -82,3 +63,22 @@ keyPassword=<your-key-password>
 keyAlias=<your-key-alias>
 storeFile=<path-to-keystore.jks>
 ```
+
+## How it's put together
+
+Storage is [Hive](https://pub.dev/packages/hive). The exercise data is a single bundled `assets/exercises.json`, loaded once at startup. The `Outfit` font is bundled too, so nothing is fetched at runtime. Screens refresh through a small `ValueNotifier` event bus that fires whenever storage changes.
+
+```text
+lib/
+├── core/        # event bus, shared UI styles
+├── data/        # exercise data helpers, muscle colors and icons
+├── models/      # workout models, date helpers
+├── screens/     # home, library, workout builder, active workout, stats, settings, etc.
+├── services/    # exercise loading, streaks, Hive storage, backup
+├── widgets/     # vibe check sheet
+└── main.dart    # startup and bottom navigation
+```
+
+## License
+
+[Add license]
