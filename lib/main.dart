@@ -118,7 +118,9 @@ class _WorkoutAppState extends State<WorkoutApp> {
   }
 
   void _retry() {
-    setState(() => _initFuture = _runInit());
+    setState(() {
+      _initFuture = _runInit();
+    });
   }
 
   @override
