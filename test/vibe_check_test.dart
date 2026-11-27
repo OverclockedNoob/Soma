@@ -29,64 +29,80 @@ void main() {
     }
   });
 
-  testWidgets('VibeCheckSheet adapts target reps for low readiness without mutating input', (
-    WidgetTester tester,
-  ) async {
-    final originalExercises = <Map<String, dynamic>>[
-      <String, dynamic>{
-        'name': 'Barbell Bench Press',
-        'muscle': 'Chest',
-        'sets': 3,
-        'targetReps': 10,
-      },
-    ];
+  testWidgets(
+    'VibeCheckSheet defaults to Normal Pace, enforces soreness overrides, and preserves workoutName',
+    (WidgetTester tester) async {
+      final originalExercises = <Map<String, dynamic>>[
+        <String, dynamic>{
+          'name': 'Barbell Bench Press',
+          'muscle': 'Chest',
+          'sets': 3,
+          'targetReps': 10,
+        },
+      ];
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (BuildContext context) => Scaffold(
-            body: Center(
-              child: ElevatedButton(
-                onPressed: () {
-                  unawaited(
-                    showModalBottomSheet<void>(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (_) => VibeCheckSheet(
-                        originalExercises: originalExercises,
-                        workoutName: 'Chest Session',
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (BuildContext context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () {
+                    unawaited(
+                      showModalBottomSheet<void>(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => VibeCheckSheet(
+                          originalExercises: originalExercises,
+                          workoutName: 'Chest Session',
+                        ),
                       ),
-                    ),
-                  );
-                },
-                child: const Text('Open Vibe Check'),
+                    );
+                  },
+                  child: const Text('Open Vibe Check'),
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.tap(find.text('Open Vibe Check'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Open Vibe Check'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('The Vibe Check'), findsOneWidget);
+      expect(find.text('The Vibe Check'), findsOneWidget);
+      // Defaults land on Normal Pace (1.0x), not an unrequested rep bump.
+      expect(find.text('Normal Pace 🙂'), findsOneWidget);
 
-    // Select < 5h sleep + Destroyed soreness -> Take It Easy (0.8x reps -> 8 reps).
-    await tester.tap(find.text('< 5h'));
-    await tester.pump();
-    await tester.tap(find.text('Destroyed'));
-    await tester.pump();
+      // High sleep + high motivation + Very sore caps at Normal Pace (never Crush It).
+      await tester.tap(find.text('8h+'));
+      await tester.pump();
+      await tester.tap(find.text("Let's go!"));
+      await tester.pump();
+      await tester.tap(find.text('Very'));
+      await tester.pump();
+      expect(find.text('Normal Pace 🙂'), findsOneWidget);
 
-    expect(find.text('Take It Easy 😓'), findsOneWidget);
+      // Destroyed soreness hard-overrides even great sleep & motivation to Take It Easy.
+      await tester.ensureVisible(find.text('Destroyed'));
+      await tester.tap(find.text('Destroyed'));
+      await tester.pump();
+      expect(find.text('Take It Easy 😓'), findsOneWidget);
 
-    await tester.tap(find.text('Start Workout'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+      await tester.ensureVisible(find.text('Start Workout'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Start Workout'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.byType(ActiveWorkoutScreen), findsOneWidget);
-    // Caller's original exercise map remains untouched at 10 targetReps.
-    expect(originalExercises.first['targetReps'], 10);
-  });
+      final activeScreen = tester.widget<ActiveWorkoutScreen>(
+        find.byType(ActiveWorkoutScreen),
+      );
+      expect(activeScreen.workoutName, 'Chest Session');
+      expect(activeScreen.customExercises?.first['targetReps'], 8);
+      // Caller's original exercise map remains untouched at 10 targetReps.
+      expect(originalExercises.first['targetReps'], 10);
+    },
+  );
 }
