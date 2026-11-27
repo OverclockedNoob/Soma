@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:workout_tracker/main.dart';
@@ -26,7 +28,7 @@ void main() {
     }
   });
 
-  testWidgets('Soma boots 100% offline, lazily mounts tabs, and handles back to Home', (
+  testWidgets('Soma boots 100% offline, lazily mounts tabs, and navigates cleanly', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const WorkoutApp());
@@ -61,26 +63,33 @@ void main() {
     expect(find.text('Import / Restore Backup'), findsOneWidget);
   });
 
-  testWidgets('WorkoutApp shows startup error screen with retry recovery', (
+  testWidgets('WorkoutApp shows loading spinner, startup error screen, and recovers on retry', (
     WidgetTester tester,
   ) async {
+    final firstAttempt = Completer<void>();
     int attempts = 0;
+
     await tester.pumpWidget(
       WorkoutApp(
-        initOverride: () async {
+        initOverride: () {
           attempts++;
-          await Future<void>.delayed(Duration.zero);
-          if (attempts == 1) {
-            throw StateError('Simulated Hive lock failure');
-          }
+          if (attempts == 1) return firstAttempt.future;
+          return Future<void>.value();
         },
       ),
     );
+
+    // While startup is pending, the loading screen spinner is shown.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    // Fail the first attempt and verify the error screen renders.
+    firstAttempt.completeError(StateError('Simulated Hive lock failure'));
     await tester.pumpAndSettle();
 
     expect(find.text("Couldn't start Soma"), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
 
+    // Tap Try again and verify recovery into MainNavigationScreen.
     await tester.tap(find.text('Try again'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));

@@ -106,11 +106,14 @@ class _WorkoutAppState extends State<WorkoutApp> {
   @override
   void initState() {
     super.initState();
-    _initFuture = _runInit();
+    // Attach `.ignore()` so an early failure before MaterialApp mounts the
+    // FutureBuilder route is not reported as an uncaught zone error; the
+    // FutureBuilder still receives snapshot.error normally.
+    _initFuture = _runInit()..ignore();
   }
 
   void _retry() {
-    setState(() => _initFuture = _runInit());
+    setState(() => _initFuture = _runInit()..ignore());
   }
 
   @override
