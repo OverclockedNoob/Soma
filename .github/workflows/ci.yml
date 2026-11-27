@@ -61,10 +61,13 @@ jobs:
           out = (res.stdout or "") + "\n" + (res.stderr or "")
           print(out)
           if res.returncode != 0:
-              for ln in out.splitlines()[-20:]:
-                  s = ln.strip()
-                  if s:
-                      print(f"::error title=flutter test::{s}")
+              lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
+              interesting = [
+                  ln for ln in lines
+                  if any(k in ln for k in ("EXCEPTION", "thrown", "Error", "Failed", "pending", "Timer", "RenderFlex", "package:workout_tracker", "widget_test.dart"))
+              ]
+              for ln in (interesting[:10] if interesting else lines[-10:]):
+                  print(f"::error title=flutter test::{ln}")
               sys.exit(res.returncode)
           PY
 
