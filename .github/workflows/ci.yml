@@ -71,11 +71,11 @@ jobs:
               sys.exit(res.returncode)
           PY
 
-      - name: Build debug APK
+      - name: Build release APK
         run: |
           python3 - <<'PY'
           import subprocess, sys
-          res = subprocess.run(["flutter", "build", "apk", "--debug", "--no-pub"], text=True, capture_output=True)
+          res = subprocess.run(["flutter", "build", "apk", "--release", "--no-pub"], text=True, capture_output=True)
           out = (res.stdout or "") + "\n" + (res.stderr or "")
           print(out)
           if res.returncode != 0:

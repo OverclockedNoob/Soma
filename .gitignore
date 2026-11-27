@@ -40,3 +40,7 @@ app.*.map.json
 /android/key.properties
 *.jks
 *.keystore
+
+# Local source archive snapshots
+/backups/
+

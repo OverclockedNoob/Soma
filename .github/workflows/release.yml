@@ -1,0 +1,98 @@
+name: Publish Release APK
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-apk:
+    name: Build & Publish Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Resolve release version & tag
+        id: meta
+        run: |
+          PUB_VER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+          else
+            VERSION="${PUB_VER}"
+            TAG="v${VERSION}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved Soma release ${TAG} (version ${VERSION})"
+
+      - name: Build universal & arm64-v8a release APKs
+        run: |
+          mkdir -p dist
+          flutter build apk --release --no-pub
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/Soma-v${{ steps.meta.outputs.version }}.apk"
+
+          flutter build apk --release --split-per-abi --no-pub
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "dist/Soma-v${{ steps.meta.outputs.version }}-arm64-v8a.apk"
+
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+          ls -lh dist/
+
+      - name: Upload APK build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Soma-${{ steps.meta.outputs.tag }}-APK
+          path: dist/*
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          cat <<EOF > RELEASE_NOTES.md
+          ## Soma ${TAG} — Offline-First Adaptive Workout Tracker
+
+          100% offline Android build with **500 bundled local exercises**, **The Vibe Check** readiness scaling, **Gym Tetris** equipment-aware swaps, **Custom Routines & Multi-Week Splits**, **Recovery Bank** streak protection, and **JSON Backup & Restore** — zero API keys or internet required.
+
+          ### Downloads
+          - **\`Soma-v${VERSION}-arm64-v8a.apk\`** *(Recommended for modern 64-bit Android phones — smaller download)*
+          - **\`Soma-v${VERSION}.apk\`** *(Universal APK supporting arm64-v8a, armeabi-v7a & x86_64 devices/emulators)*
+
+          ### SHA-256 Checksums
+          \`\`\`text
+          $(cat dist/SHA256SUMS.txt)
+          \`\`\`
+          EOF
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" dist/* --clobber
+            gh release edit "${TAG}" --title "Soma ${TAG}" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "${TAG}" dist/* \
+              --target "${GITHUB_SHA}" \
+              --title "Soma ${TAG}" \
+              --notes-file RELEASE_NOTES.md
+          fi
