@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "workout_tracker" "\0"
+            VALUE "CompanyName", "OverclockedNoob" "\0"
+            VALUE "FileDescription", "Soma - Offline Fitness Tracker" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "workout_tracker" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 OverclockedNoob. All rights reserved." "\0"
             VALUE "OriginalFilename", "workout_tracker.exe" "\0"
-            VALUE "ProductName", "workout_tracker" "\0"
+            VALUE "ProductName", "Soma" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

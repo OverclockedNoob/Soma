@@ -1,10 +1,9 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 // ════════════════════════════════════════════════════════════
-//  WORKOUT TRACKER — PREMIUM DESIGN SYSTEM
+//  SOMA — PREMIUM DESIGN SYSTEM
 // ════════════════════════════════════════════════════════════
 
 class PUI {
@@ -22,12 +21,18 @@ class PUI {
     FontWeight weight = FontWeight.w500,
     Color color = Colors.white,
     double letterSpacing = 0,
+    double? height,
   }) =>
-      GoogleFonts.outfit(
+      TextStyle(
+        fontFamily: 'Outfit',
         fontSize: size,
         fontWeight: weight,
+        fontVariations: <FontVariation>[
+          FontVariation('wght', weight.value.toDouble()),
+        ],
         color: color,
         letterSpacing: letterSpacing,
+        height: height,
       );
 }
 
@@ -47,11 +52,17 @@ class _PressableState extends State<Pressable> {
 
   @override
   Widget build(BuildContext context) {
-           return GestureDetector(
+    return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
+      onTapDown: widget.onTap == null
+          ? null
+          : (_) => setState(() => _pressed = true),
+      onTapUp: widget.onTap == null
+          ? null
+          : (_) => setState(() => _pressed = false),
+      onTapCancel: widget.onTap == null
+          ? null
+          : () => setState(() => _pressed = false),
       onTap: widget.onTap,
       child: AnimatedScale(
         scale: _pressed ? 0.96 : 1.0,
@@ -69,7 +80,12 @@ class Glass extends StatelessWidget {
   final double radius;
   final EdgeInsetsGeometry? padding;
 
-  const Glass({super.key, required this.child, this.radius = 24, this.padding});
+  const Glass({
+    super.key,
+    required this.child,
+    this.radius = 24,
+    this.padding,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -84,12 +100,12 @@ class Glass extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withOpacity(0.08),
-                Colors.white.withOpacity(0.02),
+              colors: <Color>[
+                Colors.white.withValues(alpha: 0.08),
+                Colors.white.withValues(alpha: 0.02),
               ],
             ),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: child,
         ),
@@ -116,10 +132,11 @@ class GradientText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ShaderMask(
-      shaderCallback: (rect) => LinearGradient(
+      shaderCallback: (Rect rect) => LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: colors ?? [Colors.white, Colors.white.withOpacity(0.55)],
+        colors: colors ??
+            <Color>[Colors.white, Colors.white.withValues(alpha: 0.55)],
       ).createShader(rect),
       child: Text(text, style: PUI.text(size: size, weight: weight)),
     );
@@ -132,20 +149,25 @@ class SectionTitle extends StatelessWidget {
   final String? actionLabel;
   final VoidCallback? onAction;
 
-  const SectionTitle(this.title, {super.key, this.actionLabel, this.onAction});
+  const SectionTitle(
+    this.title, {
+    super.key,
+    this.actionLabel,
+    this.onAction,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
+      children: <Widget>[
         Text(
           title.toUpperCase(),
           style: PUI.text(
             size: 12,
             weight: FontWeight.w700,
             letterSpacing: 1.8,
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
           ),
         ),
         if (actionLabel != null)
@@ -193,15 +215,19 @@ class PrimaryButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: muted
               ? null
-              : const LinearGradient(colors: [PUI.primary, PUI.primaryDeep]),
-          color: muted ? Colors.white.withOpacity(0.05) : null,
+              : const LinearGradient(
+                  colors: <Color>[PUI.primary, PUI.primaryDeep],
+                ),
+          color: muted ? Colors.white.withValues(alpha: 0.05) : null,
           borderRadius: BorderRadius.circular(20),
-          border: muted ? Border.all(color: Colors.white.withOpacity(0.1)) : null,
+          border: muted
+              ? Border.all(color: Colors.white.withValues(alpha: 0.1))
+              : null,
           boxShadow: muted
-              ? []
-              : [
+              ? const <BoxShadow>[]
+              : <BoxShadow>[
                   BoxShadow(
-                    color: PUI.primary.withOpacity(0.35),
+                    color: PUI.primary.withValues(alpha: 0.35),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -210,9 +236,13 @@ class PrimaryButton extends StatelessWidget {
         child: Center(
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, color: muted ? Colors.white70 : Colors.white, size: 24),
+            children: <Widget>[
+              if (icon != null) ...<Widget>[
+                Icon(
+                  icon,
+                  color: muted ? Colors.white70 : Colors.white,
+                  size: 24,
+                ),
                 const SizedBox(width: 10),
               ],
               Flexible(
@@ -243,7 +273,7 @@ class AuroraBackground extends StatelessWidget {
     return Positioned.fill(
       child: IgnorePointer(
         child: Stack(
-          children: [
+          children: <Widget>[
             Positioned(
               top: -260,
               left: -180,
@@ -254,9 +284,9 @@ class AuroraBackground extends StatelessWidget {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     radius: 1.0,
-                    colors: [
-                      PUI.primary.withOpacity(0.14),
-                      PUI.primary.withOpacity(0),
+                    colors: <Color>[
+                      PUI.primary.withValues(alpha: 0.14),
+                      PUI.primary.withValues(alpha: 0),
                     ],
                   ),
                 ),
@@ -272,9 +302,9 @@ class AuroraBackground extends StatelessWidget {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     radius: 1.0,
-                    colors: [
-                      PUI.mint.withOpacity(0.08),
-                      PUI.mint.withOpacity(0),
+                    colors: <Color>[
+                      PUI.mint.withValues(alpha: 0.08),
+                      PUI.mint.withValues(alpha: 0),
                     ],
                   ),
                 ),
@@ -287,7 +317,7 @@ class AuroraBackground extends StatelessWidget {
   }
 }
 
-// ── PREMIUM SCAFFOLD (use on EVERY screen) ────────────────────
+// ── PREMIUM SCAFFOLD ──────────────────────────────────────────
 class PremiumScaffold extends StatelessWidget {
   final String? title;
   final List<Widget>? actions;
@@ -322,26 +352,34 @@ class PremiumScaffold extends StatelessWidget {
               leading: !Navigator.canPop(context)
                   ? null
                   : Padding(
-                padding: const EdgeInsets.all(10),
-                child: Pressable(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withOpacity(0.08)),
+                      padding: const EdgeInsets.all(10),
+                      child: Pressable(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_ios_new,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
                     ),
-                    child: const Icon(Icons.arrow_back_ios_new,
-                        color: Colors.white, size: 18),
-                  ),
-                ),
+              title: Text(
+                title!,
+                style: PUI.text(size: 20, weight: FontWeight.w800),
               ),
-              title: Text(title!, style: PUI.text(size: 20, weight: FontWeight.w800)),
               centerTitle: true,
               actions: actions,
             ),
       body: Stack(
-        children: [
+        children: <Widget>[
           if (aurora) const AuroraBackground(),
           if (safeArea) SafeArea(child: body) else body,
         ],
@@ -355,9 +393,13 @@ class PremiumBottomBar extends StatelessWidget {
   final int index;
   final ValueChanged<int> onTap;
 
-  const PremiumBottomBar({super.key, required this.index, required this.onTap});
+  const PremiumBottomBar({
+    super.key,
+    required this.index,
+    required this.onTap,
+  });
 
-  static const List<_NavItem> _items = [
+  static const List<_NavItem> _items = <_NavItem>[
     _NavItem(Icons.home_rounded, 'Home'),
     _NavItem(Icons.fitness_center, 'Library'),
     _NavItem(Icons.bar_chart_rounded, 'Stats'),
@@ -372,20 +414,20 @@ class PremiumBottomBar extends StatelessWidget {
         child: Container(
           height: 72,
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.5),
+            color: Colors.black.withValues(alpha: 0.5),
             border: Border(
-              top: BorderSide(color: Colors.white.withOpacity(0.08)),
+              top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
             ),
           ),
           child: Row(
-            children: List.generate(_items.length, (i) {
+            children: List<Widget>.generate(_items.length, (int i) {
               final active = i == index;
               return Expanded(
                 child: Pressable(
                   onTap: () => onTap(i),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
+                    children: <Widget>[
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 250),
                         padding: EdgeInsets.symmetric(
@@ -395,21 +437,24 @@ class PremiumBottomBar extends StatelessWidget {
                         decoration: BoxDecoration(
                           gradient: active
                               ? const LinearGradient(
-                                  colors: [PUI.primary, PUI.primaryDeep])
+                                  colors: <Color>[PUI.primary, PUI.primaryDeep],
+                                )
                               : null,
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: active
-                              ? [
+                              ? <BoxShadow>[
                                   BoxShadow(
-                                    color: PUI.primary.withOpacity(0.4),
+                                    color: PUI.primary.withValues(alpha: 0.4),
                                     blurRadius: 12,
                                   ),
                                 ]
-                              : [],
+                              : const <BoxShadow>[],
                         ),
                         child: Icon(
                           _items[i].icon,
-                          color: active ? Colors.white : Colors.white.withOpacity(0.35),
+                          color: active
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.35),
                           size: 22,
                         ),
                       ),
@@ -419,7 +464,9 @@ class PremiumBottomBar extends StatelessWidget {
                         style: PUI.text(
                           size: 10,
                           weight: active ? FontWeight.w700 : FontWeight.w500,
-                          color: active ? Colors.white : Colors.white.withOpacity(0.35),
+                          color: active
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.35),
                         ),
                       ),
                     ],

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:workout_tracker/services/storage_services.dart';
+
+import '../core/event_bus.dart';
 import '../core/premium_ui.dart';
+import '../models/workout_models.dart';
+import '../services/storage_services.dart';
+import '../services/streak_service.dart';
 
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
@@ -10,7 +14,9 @@ class StatisticsScreen extends StatefulWidget {
 }
 
 class _StatisticsScreenState extends State<StatisticsScreen> {
-  List<Map<String, dynamic>> workouts = [];
+  List<WorkoutSession> sessions = <WorkoutSession>[];
+  List<WorkoutSession> thisWeekSessions = <WorkoutSession>[];
+  int currentStreak = 0;
   int recoveryCoins = 0;
   bool _isLoading = true;
 
@@ -18,123 +24,68 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   void initState() {
     super.initState();
     _loadData();
+    WorkoutEventBus.instance.revision.addListener(_onDataChanged);
+  }
+
+  void _onDataChanged() {
+    if (mounted) _loadData();
+  }
+
+  @override
+  void dispose() {
+    WorkoutEventBus.instance.revision.removeListener(_onDataChanged);
+    super.dispose();
   }
 
   void _loadData() {
-    final loadedWorkouts = WorkoutStorage.getAllWorkouts();
+    final loadedSessions = WorkoutStorage.getAllWorkoutSessions();
+    final weekSessions = WorkoutStorage.getWorkoutSessionsThisWeek();
     final coins = SettingsStorage.getRecoveryCoins();
+    final streak = StreakService.calculateCurrentStreak();
     if (mounted) {
       setState(() {
-        workouts = loadedWorkouts;
+        sessions = loadedSessions;
+        thisWeekSessions = weekSessions;
         recoveryCoins = coins;
+        currentStreak = streak;
         _isLoading = false;
       });
     }
   }
 
-  int getTotalWorkouts() => workouts.length;
-
-  // Heads up: this streak calc is separate from the one in HomeScreen.
-  // That one also factors in rest days from the active program, this one
-  // only cares about workouts + frozen dates. Slightly annoying that they
-  // can disagree but merging them is a bigger refactor than I want to do
-  // right now — noting it here so it's not a surprise later.
-  int getCurrentStreak() {
-    if (workouts.isEmpty) return 0;
-
-    final workoutDateSet = <DateTime>{};
-    for (var workout in workouts) {
-      try {
-        final d = DateTime.parse(workout['date'] as String);
-        workoutDateSet.add(DateTime(d.year, d.month, d.day));
-      } catch (_) {
-        continue; // bad date string, just skip it
-      }
-    }
-
-    final sortedDates = workoutDateSet.toList()..sort((a, b) => b.compareTo(a));
-    if (sortedDates.isEmpty) return 0;
-
-    final today = DateTime.now();
-    final todayNormalized = DateTime(today.year, today.month, today.day);
-    final yesterday = todayNormalized.subtract(const Duration(days: 1));
-
-    // streak only counts if the most recent workout is today/yesterday,
-    // or today/yesterday was frozen — otherwise it's dead, return 0 early
-    DateTime checkDay;
-    if (sortedDates.first == todayNormalized) {
-      checkDay = todayNormalized;
-    } else if (sortedDates.first == yesterday) {
-      checkDay = yesterday;
-    } else if (SettingsStorage.isDateFrozen(_dateKey(todayNormalized))) {
-      checkDay = todayNormalized;
-    } else if (SettingsStorage.isDateFrozen(_dateKey(yesterday))) {
-      checkDay = yesterday;
-    } else {
-      return 0;
-    }
-
-    int streak = 0;
-    for (final day in sortedDates) {
-      if (day == checkDay) {
-        streak++;
-        checkDay = checkDay.subtract(const Duration(days: 1));
-      } else if (day.isBefore(checkDay)) {
-        // gap between workouts — only bridge it if every day in between
-        // was frozen, one unfrozen day in the gap kills the streak
-        bool gapFrozen = true;
-        DateTime tempCheck = checkDay;
-        while (tempCheck.isAfter(day)) {
-          if (!SettingsStorage.isDateFrozen(_dateKey(tempCheck))) {
-            gapFrozen = false;
-            break;
-          }
-          tempCheck = tempCheck.subtract(const Duration(days: 1));
-        }
-
-        if (gapFrozen) {
-          streak += checkDay.difference(day).inDays;
-          checkDay = day;
-        } else {
-          break;
-        }
-      }
-    }
-    return streak;
-  }
-
-  // pulled this out after noticing the same "yyyy-MM-dd" formatting
-  // getting copy-pasted three times above — one typo away from a bug
-  String _dateKey(DateTime date) {
-    return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
-  }
+  int getTotalWorkouts() => sessions.length;
 
   double getTotalHours() {
-    final totalMinutes = workouts.fold<int>(0, (sum, w) => sum + ((w['durationMinutes'] as int?) ?? 0));
-    return totalMinutes / 60.0;
+    final totalSeconds = sessions.fold<int>(
+      0,
+      (int sum, WorkoutSession s) => sum + s.durationSeconds,
+    );
+    return totalSeconds / 3600.0;
   }
 
-  int getTotalCalories() => workouts.fold<int>(0, (sum, w) => sum + ((w['calories'] as int?) ?? 0));
+  int getTotalCalories() => sessions.fold<int>(
+        0,
+        (int sum, WorkoutSession s) => sum + s.calories,
+      );
 
-  // heads up, this is relative to your busiest day this week, not an
-  // absolute target. train once and that bar goes full height. works fine
-  // visually but don't read too much into the exact percentages
+  int getTotalReps() => sessions.fold<int>(
+        0,
+        (int sum, WorkoutSession s) => sum + s.totalReps,
+      );
+
   List<double> getWeeklyProgress() {
     final weeklyProgress = List<double>.filled(7, 0.0);
-    final thisWeekWorkouts = WorkoutStorage.getWorkoutsThisWeek();
     final dayCounts = List<int>.filled(7, 0);
 
-    for (var workout in thisWeekWorkouts) {
-      try {
-        final date = DateTime.parse(workout['date'] as String);
-        final dayIndex = date.weekday - 1;
+    for (final session in thisWeekSessions) {
+      final day = session.dayUtc;
+      if (day != null) {
+        final dayIndex = day.weekday - 1;
         if (dayIndex >= 0 && dayIndex < 7) dayCounts[dayIndex]++;
-      } catch (_) {
-        continue;
       }
     }
 
-    final maxCount = dayCounts.isEmpty ? 0 : dayCounts.reduce((a, b) => a > b ? a : b);
+    final maxCount = dayCounts.reduce((int a, int b) => a > b ? a : b);
     if (maxCount == 0) return weeklyProgress;
 
     for (int i = 0; i < 7; i++) {
@@ -146,13 +97,13 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   @override
   Widget build(BuildContext context) {
     final totalWorkouts = getTotalWorkouts();
-    final currentStreak = getCurrentStreak();
     final totalHours = getTotalHours();
     final totalCalories = getTotalCalories();
     final weeklyProgress = getWeeklyProgress();
-    final weeklyCount = weeklyProgress.where((d) => d > 0).length;
+    final weeklyCount = weeklyProgress.where((double d) => d > 0).length;
 
     return PremiumScaffold(
+      title: Navigator.canPop(context) ? 'Statistics' : null,
       aurora: true,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: PUI.primary))
@@ -164,55 +115,121 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
+                    if (!Navigator.canPop(context))
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: <Widget>[
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  'YOUR PROGRESS',
+                                  style: PUI.text(
+                                    size: 11,
+                                    weight: FontWeight.w600,
+                                    letterSpacing: 2.2,
+                                    color: Colors.white.withValues(alpha: 0.4),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                const GradientText('Statistics', size: 32),
+                              ],
+                            ),
+                            const Glass(
+                              radius: 16,
+                              padding: EdgeInsets.all(12),
+                              child: Icon(
+                                Icons.bar_chart_rounded,
+                                color: PUI.primary,
+                                size: 24,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      const SizedBox(height: 8),
+                    const SizedBox(height: 16),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text("YOUR PROGRESS", style: PUI.text(size: 11, weight: FontWeight.w600, letterSpacing: 2.2, color: Colors.white.withOpacity(0.4))),
-                              const SizedBox(height: 6),
-                              GradientText("Statistics", size: 32),
-                            ],
-                          ),
-                          Glass(radius: 16, padding: const EdgeInsets.all(12), child: Icon(Icons.bar_chart_rounded, color: PUI.primary, size: 24)),
-                        ],
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: _buildHeroStreakCard(currentStreak),
+                    ),
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: _buildStatsGrid(
+                        totalWorkouts,
+                        totalHours,
+                        totalCalories,
+                        weeklyCount,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Padding(padding: const EdgeInsets.symmetric(horizontal: 24.0), child: _buildHeroStreakCard(currentStreak)),
-                    const SizedBox(height: 24),
-                    Padding(padding: const EdgeInsets.symmetric(horizontal: 24.0), child: _buildStatsGrid(totalWorkouts, totalHours, totalCalories, weeklyCount)),
                     const SizedBox(height: 32),
-                    Padding(padding: const EdgeInsets.symmetric(horizontal: 24.0), child: SectionTitle("Weekly Activity")),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24.0),
+                      child: SectionTitle('Weekly Activity'),
+                    ),
                     const SizedBox(height: 16),
-                    Padding(padding: const EdgeInsets.symmetric(horizontal: 24.0), child: _buildWeeklyChart(weeklyProgress, weeklyCount)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: _buildWeeklyChart(weeklyProgress, weeklyCount),
+                    ),
                     const SizedBox(height: 32),
-
-                    // only show lifetime section once there's real data —
-                    // "avg duration: 0 min" on a brand new install looks broken
-                    if (workouts.isNotEmpty) ...[
-                      Padding(padding: const EdgeInsets.symmetric(horizontal: 24.0), child: SectionTitle("Lifetime Averages")),
+                    if (sessions.isNotEmpty) ...<Widget>[
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 24.0),
+                        child: SectionTitle('Lifetime Highlights'),
+                      ),
                       const SizedBox(height: 16),
-                      Padding(padding: const EdgeInsets.symmetric(horizontal: 24.0), child: _buildLifetimeHighlights()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: _buildLifetimeHighlights(),
+                      ),
                       const SizedBox(height: 40),
                     ],
-                    if (workouts.isEmpty)
+                    if (sessions.isEmpty)
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24.0,
+                          vertical: 40,
+                        ),
                         child: Glass(
                           radius: 24,
                           padding: const EdgeInsets.all(32),
                           child: Column(
-                            children: [
-                              Container(padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: PUI.primary.withOpacity(0.1), shape: BoxShape.circle), child: Icon(Icons.fitness_center, size: 48, color: PUI.primary.withOpacity(0.6))),
+                            children: <Widget>[
+                              Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: PUI.primary.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.fitness_center,
+                                  size: 48,
+                                  color: PUI.primary.withValues(alpha: 0.6),
+                                ),
+                              ),
                               const SizedBox(height: 20),
-                              Text("No workouts yet", style: PUI.text(size: 20, weight: FontWeight.w700)),
+                              Text(
+                                'No workouts yet',
+                                style: PUI.text(
+                                  size: 20,
+                                  weight: FontWeight.w700,
+                                ),
+                              ),
                               const SizedBox(height: 8),
-                              Text("Complete a workout to see your stats!", style: PUI.text(size: 14, color: Colors.white.withOpacity(0.5)), textAlign: TextAlign.center),
+                              Text(
+                                'Complete a workout to see your stats!',
+                                style: PUI.text(
+                                  size: 14,
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
                             ],
                           ),
                         ),
@@ -230,25 +247,71 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       radius: 28,
       child: Container(
         padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(gradient: LinearGradient(colors: [PUI.flame.withOpacity(0.15), Colors.transparent], begin: Alignment.topRight, end: Alignment.bottomLeft)),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: <Color>[
+              PUI.flame.withValues(alpha: 0.15),
+              Colors.transparent,
+            ],
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+          ),
+        ),
         child: Row(
-          children: [
+          children: <Widget>[
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("CURRENT STREAK", style: PUI.text(size: 11, weight: FontWeight.w700, letterSpacing: 2.0, color: PUI.flame.withOpacity(0.8))),
+                children: <Widget>[
+                  Text(
+                    'CURRENT STREAK',
+                    style: PUI.text(
+                      size: 11,
+                      weight: FontWeight.w700,
+                      letterSpacing: 2.0,
+                      color: PUI.flame.withValues(alpha: 0.8),
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  GradientText("$streak Days", size: 42, weight: FontWeight.w900, colors: [PUI.flame, PUI.amber]),
+                  GradientText(
+                    '$streak ${streak == 1 ? 'Day' : 'Days'}',
+                    size: 40,
+                    weight: FontWeight.w900,
+                    colors: const <Color>[PUI.flame, PUI.amber],
+                  ),
                   const SizedBox(height: 4),
-                  Text(streak > 0 ? "Keep the fire burning! 🔥" : "Start your streak today", style: PUI.text(size: 13, color: Colors.white.withOpacity(0.6))),
+                  Text(
+                    streak > 0
+                        ? 'Keep the fire burning! 🔥'
+                        : 'Start your streak today',
+                    style: PUI.text(
+                      size: 13,
+                      color: Colors.white.withValues(alpha: 0.6),
+                    ),
+                  ),
                 ],
               ),
             ),
             Container(
-              width: 72, height: 72,
-              decoration: BoxDecoration(gradient: const LinearGradient(colors: [PUI.flame, PUI.amber]), shape: BoxShape.circle, boxShadow: [BoxShadow(color: PUI.flame.withOpacity(0.4), blurRadius: 24)]),
-              child: const Icon(Icons.local_fire_department, color: Colors.white, size: 36),
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: <Color>[PUI.flame, PUI.amber],
+                ),
+                shape: BoxShape.circle,
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: PUI.flame.withValues(alpha: 0.4),
+                    blurRadius: 24,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.local_fire_department,
+                color: Colors.white,
+                size: 36,
+              ),
             ),
           ],
         ),
@@ -256,47 +319,120 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
-  Widget _buildStatsGrid(int totalWorkouts, double totalHours, int totalCalories, int weeklyCount) {
+  Widget _buildStatsGrid(
+    int totalWorkouts,
+    double totalHours,
+    int totalCalories,
+    int weeklyCount,
+  ) {
+    final totalReps = getTotalReps();
     return Column(
-      children: [
+      children: <Widget>[
         Row(
-          children: [
-            Expanded(child: _buildStatTile("$totalWorkouts", "Workouts", Icons.fitness_center, PUI.primary)),
+          children: <Widget>[
+            Expanded(
+              child: _buildStatTile(
+                '$totalWorkouts',
+                'Workouts',
+                Icons.fitness_center,
+                PUI.primary,
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: _buildStatTile("${totalHours.toStringAsFixed(1)}h", "Total Time", Icons.timer, PUI.mint)),
+            Expanded(
+              child: _buildStatTile(
+                '${totalHours.toStringAsFixed(1)}h',
+                'Total Time',
+                Icons.timer,
+                PUI.mint,
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: _buildStatTile("$totalCalories", "Calories", Icons.bolt, PUI.amber)),
+            Expanded(
+              child: _buildStatTile(
+                '$totalCalories',
+                'Calories',
+                Icons.bolt,
+                PUI.amber,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 12),
         Row(
-          children: [
-            Expanded(child: _buildStatTile("$weeklyCount/7", "This Week", Icons.calendar_month, PUI.pink)),
+          children: <Widget>[
+            Expanded(
+              child: _buildStatTile(
+                '$weeklyCount/7',
+                'This Week',
+                Icons.calendar_month,
+                PUI.pink,
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: _buildStatTile("$recoveryCoins", "Recovery Coins", Icons.shield, PUI.mint)),
+            Expanded(
+              child: _buildStatTile(
+                '$recoveryCoins',
+                'Recovery Coins',
+                Icons.shield,
+                PUI.mint,
+              ),
+            ),
             const SizedBox(width: 12),
-            // leaving this slot empty on purpose to keep the grid 3-wide —
-            // good spot for a PR/max-weight stat down the line
-            const Expanded(child: SizedBox()),
+            Expanded(
+              child: _buildStatTile(
+                '$totalReps',
+                'Total Reps',
+                Icons.repeat_rounded,
+                PUI.primary,
+              ),
+            ),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildStatTile(String value, String label, IconData icon, Color accent) {
+  Widget _buildStatTile(
+    String value,
+    String label,
+    IconData icon,
+    Color accent,
+  ) {
     return Glass(
       radius: 20,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: accent, size: 20, shadows: [Shadow(color: accent.withOpacity(0.6), blurRadius: 8)]),
+          children: <Widget>[
+            Icon(
+              icon,
+              color: accent,
+              size: 20,
+              shadows: <Shadow>[
+                Shadow(
+                  color: accent.withValues(alpha: 0.6),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
-            Text(value, style: PUI.text(size: 22, weight: FontWeight.w800), maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(
+              value,
+              style: PUI.text(size: 22, weight: FontWeight.w800),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             const SizedBox(height: 2),
-            Text(label, style: PUI.text(size: 11, weight: FontWeight.w600, color: Colors.white.withOpacity(0.5))),
+            Text(
+              label,
+              style: PUI.text(
+                size: 11,
+                weight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: 0.5),
+              ),
+            ),
           ],
         ),
       ),
@@ -304,7 +440,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   Widget _buildWeeklyChart(List<double> weeklyProgress, int weeklyCount) {
-    final days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const days = <String>['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     final todayIndex = DateTime.now().weekday - 1;
     final completionPct = (weeklyCount / 7 * 100).toStringAsFixed(0);
 
@@ -314,22 +450,47 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
+              children: <Widget>[
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Activity", style: PUI.text(size: 16, weight: FontWeight.w800)),
+                  children: <Widget>[
+                    Text(
+                      'Activity',
+                      style: PUI.text(size: 16, weight: FontWeight.w800),
+                    ),
                     const SizedBox(height: 4),
-                    Text("$weeklyCount workouts this week", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.5))),
+                    Text(
+                      '$weeklyCount active ${weeklyCount == 1 ? 'day' : 'days'} this week',
+                      style: PUI.text(
+                        size: 12,
+                        color: Colors.white.withValues(alpha: 0.5),
+                      ),
+                    ),
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(color: PUI.primary.withOpacity(0.12), borderRadius: BorderRadius.circular(20), border: Border.all(color: PUI.primary.withOpacity(0.3))),
-                  child: Text("$completionPct%", style: PUI.text(size: 12, weight: FontWeight.w800, color: PUI.primary)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: PUI.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: PUI.primary.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    '$completionPct%',
+                    style: PUI.text(
+                      size: 12,
+                      weight: FontWeight.w800,
+                      color: PUI.primary,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -338,7 +499,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               height: 140,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
-                children: List.generate(7, (i) {
+                children: List<Widget>.generate(7, (int i) {
                   final progress = weeklyProgress[i];
                   final isToday = i == todayIndex;
                   final isActive = progress > 0;
@@ -347,25 +508,65 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 4.0),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 1000),
-                              curve: Curves.easeOutCubic,
-                              width: double.infinity,
-                              // clamped so a tiny value doesn't render as a
-                              // basically-invisible sliver
-                              height: isActive ? (progress * 120).clamp(16.0, 120.0) : 8.0,
-                              decoration: BoxDecoration(
-                                gradient: isActive ? LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: isToday ? [PUI.mint, PUI.mint.withOpacity(0.4)] : [PUI.primary, PUI.primaryDeep]) : null,
-                                color: isActive ? null : Colors.white.withOpacity(0.06),
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: (isActive && isToday) ? [BoxShadow(color: PUI.mint.withOpacity(0.5), blurRadius: 16)] : (isActive ? [BoxShadow(color: PUI.primary.withOpacity(0.3), blurRadius: 8)] : []),
-                              ),
+                        children: <Widget>[
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 700),
+                            curve: Curves.easeOutCubic,
+                            width: double.infinity,
+                            height: isActive
+                                ? (progress * 108).clamp(16.0, 108.0)
+                                : 8.0,
+                            decoration: BoxDecoration(
+                              gradient: isActive
+                                  ? LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: isToday
+                                          ? <Color>[
+                                              PUI.mint,
+                                              PUI.mint.withValues(alpha: 0.4),
+                                            ]
+                                          : const <Color>[
+                                              PUI.primary,
+                                              PUI.primaryDeep,
+                                            ],
+                                    )
+                                  : null,
+                              color: isActive
+                                  ? null
+                                  : Colors.white.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: (isActive && isToday)
+                                  ? <BoxShadow>[
+                                      BoxShadow(
+                                        color: PUI.mint.withValues(alpha: 0.5),
+                                        blurRadius: 16,
+                                      ),
+                                    ]
+                                  : (isActive
+                                      ? <BoxShadow>[
+                                          BoxShadow(
+                                            color: PUI.primary.withValues(
+                                              alpha: 0.3,
+                                            ),
+                                            blurRadius: 8,
+                                          ),
+                                        ]
+                                      : const <BoxShadow>[]),
                             ),
                           ),
                           const SizedBox(height: 12),
-                          Text(days[i], style: PUI.text(size: 12, weight: isToday ? FontWeight.w800 : FontWeight.w600, color: isToday ? PUI.mint : Colors.white.withOpacity(0.4))),
+                          Text(
+                            days[i],
+                            style: PUI.text(
+                              size: 12,
+                              weight:
+                                  isToday ? FontWeight.w800 : FontWeight.w600,
+                              color: isToday
+                                  ? PUI.mint
+                                  : Colors.white.withValues(alpha: 0.4),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -380,42 +581,89 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   Widget _buildLifetimeHighlights() {
-    final totalMinutes = workouts.fold<int>(0, (sum, w) => sum + ((w['durationMinutes'] as int?) ?? 0));
-    final avgMinutes = workouts.isNotEmpty ? (totalMinutes / workouts.length).round() : 0;
+    final totalSeconds = sessions.fold<int>(
+      0,
+      (int sum, WorkoutSession s) => sum + s.durationSeconds,
+    );
+    final avgMinutes = sessions.isNotEmpty
+        ? (totalSeconds / 60.0 / sessions.length).round()
+        : 0;
+    final avgSets = sessions.isNotEmpty
+        ? (sessions.fold<int>(
+                  0,
+                  (int sum, WorkoutSession s) => sum + s.totalSets,
+                ) /
+                sessions.length)
+            .toStringAsFixed(1)
+        : '0';
+
     return Glass(
       radius: 28,
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Averages", style: PUI.text(size: 16, weight: FontWeight.w800)),
+          children: <Widget>[
+            Text(
+              'Session Averages',
+              style: PUI.text(size: 16, weight: FontWeight.w800),
+            ),
             const SizedBox(height: 20),
             Row(
-              children: [
-                Expanded(child: _buildAvgTile("Avg. Duration", "$avgMinutes min", Icons.hourglass_bottom, PUI.primary)),
+              children: <Widget>[
+                Expanded(
+                  child: _buildAvgTile(
+                    'Avg. Duration',
+                    '$avgMinutes min',
+                    Icons.hourglass_bottom,
+                    PUI.primary,
+                  ),
+                ),
                 const SizedBox(width: 16),
-                Expanded(child: _buildAvgTile("Total Volume", "${(totalMinutes / 60).toStringAsFixed(1)} hrs", Icons.trending_up, PUI.mint)),
+                Expanded(
+                  child: _buildAvgTile(
+                    'Avg. Sets / Session',
+                    avgSets,
+                    Icons.trending_up,
+                    PUI.mint,
+                  ),
+                ),
               ],
-            )
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAvgTile(String label, String value, IconData icon, Color color) {
+  Widget _buildAvgTile(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.2))),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        children: <Widget>[
           Icon(icon, color: color, size: 20),
           const SizedBox(height: 12),
           Text(value, style: PUI.text(size: 20, weight: FontWeight.w800)),
           const SizedBox(height: 4),
-          Text(label, style: PUI.text(size: 11, color: Colors.white.withOpacity(0.5), weight: FontWeight.w600)),
+          Text(
+            label,
+            style: PUI.text(
+              size: 11,
+              color: Colors.white.withValues(alpha: 0.5),
+              weight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );

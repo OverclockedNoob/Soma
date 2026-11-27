@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
-import 'package:workout_tracker/services/storage_services.dart';
+
 import '../core/premium_ui.dart';
+import '../models/workout_models.dart';
+import '../services/storage_services.dart';
 
 class SplitBuilderScreen extends StatefulWidget {
   const SplitBuilderScreen({super.key});
@@ -11,32 +15,34 @@ class SplitBuilderScreen extends StatefulWidget {
 }
 
 class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
-  final TextEditingController _nameController = TextEditingController(text: "My 4-Week Split");
+  final TextEditingController _nameController = TextEditingController(
+    text: 'My 4-Week Split',
+  );
   int _durationWeeks = 4;
+  int _selectedColorValue = 0xFF8B7CFF;
 
-  // 🎨 COLOR PICKER STATE
-  int _selectedColorValue = 0xFF6C5CE7; // Default Purple
-  final List<Color> _presetColors = [
-    const Color(0xFF6C5CE7), // Purple
-    const Color(0xFFFF6B9D), // Pink
-    const Color(0xFF00D9FF), // Cyan
-    const Color(0xFFFFB800), // Orange
-    const Color(0xFF4CAF50), // Green
-    const Color(0xFFE91E63), // Deep Pink
+  static const List<Color> _presetColors = <Color>[
+    Color(0xFF8B7CFF), // Soma Primary
+    Color(0xFFFF6B9D), // Pink
+    Color(0xFF00D9FF), // Cyan
+    Color(0xFFFFB800), // Amber
+    Color(0xFF3DDCB8), // Mint
+    Color(0xFFFF6B4A), // Flame
   ];
 
-  Map<String, String?> _schedule = {
-    "Monday": null,
-    "Tuesday": null,
-    "Wednesday": null,
-    "Thursday": null,
-    "Friday": null,
-    "Saturday": null,
-    "Sunday": null,
+  final Map<String, String?> _schedule = <String, String?>{
+    'Monday': null,
+    'Tuesday': null,
+    'Wednesday': null,
+    'Thursday': null,
+    'Friday': null,
+    'Saturday': null,
+    'Sunday': null,
   };
 
-  List<Map<String, dynamic>> _savedWorkouts = [];
+  List<WorkoutRoutine> _savedRoutines = <WorkoutRoutine>[];
   bool _isLoading = true;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -44,27 +50,39 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
     _loadSavedWorkouts();
   }
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
   void _loadSavedWorkouts() {
-    final workouts = CustomWorkoutStorage.getAllCustomWorkouts();
+    final routines = CustomWorkoutStorage.getAllRoutines();
     setState(() {
-      _savedWorkouts = workouts;
+      _savedRoutines = routines;
       _isLoading = false;
     });
   }
 
   void _assignWorkoutToDay(String day) {
-    if (_savedWorkouts.isEmpty) {
+    if (_savedRoutines.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please create a Custom Workout first!", style: PUI.text())),
+        SnackBar(
+          content: Text(
+            'Please create a Custom Workout first!',
+            style: PUI.text(),
+          ),
+        ),
       );
       return;
     }
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (BuildContext sheetContext) {
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
           child: BackdropFilter(
@@ -72,82 +90,131 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
             child: Container(
               padding: const EdgeInsets.all(24.0),
               decoration: BoxDecoration(
-                color: PUI.surface.withOpacity(0.95),
-                border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
+                color: PUI.surface.withValues(alpha: 0.95),
+                border: Border(
+                  top: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+                children: <Widget>[
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                   const SizedBox(height: 20),
-                  GradientText("Assign for $day", size: 22, weight: FontWeight.w800),
+                  GradientText(
+                    'Assign for $day',
+                    size: 22,
+                    weight: FontWeight.w800,
+                  ),
                   const SizedBox(height: 20),
-                  
-                  // Rest Day Option
                   Pressable(
                     onTap: () {
                       setState(() => _schedule[day] = null);
-                      Navigator.pop(context);
+                      Navigator.pop(sheetContext);
                     },
                     child: Container(
                       width: double.infinity,
                       height: 56,
                       decoration: BoxDecoration(
-                        color: PUI.mint.withOpacity(0.1),
+                        color: PUI.mint.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: PUI.mint.withOpacity(0.4)),
+                        border: Border.all(
+                          color: PUI.mint.withValues(alpha: 0.4),
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.bedtime, color: PUI.mint),
+                        children: <Widget>[
+                          const Icon(Icons.bedtime, color: PUI.mint),
                           const SizedBox(width: 12),
-                          Text("Rest Day", style: PUI.text(size: 16, weight: FontWeight.w700, color: PUI.mint)),
+                          Text(
+                            'Rest Day',
+                            style: PUI.text(
+                              size: 16,
+                              weight: FontWeight.w700,
+                              color: PUI.mint,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
-                  Row(children: [Expanded(child: Divider(color: Colors.white.withOpacity(0.1))), Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text("OR", style: PUI.text(size: 12, color: Colors.white.withOpacity(0.4)))), Expanded(child: Divider(color: Colors.white.withOpacity(0.1)))]),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Divider(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'OR',
+                          style: PUI.text(
+                            size: 12,
+                            color: Colors.white.withValues(alpha: 0.4),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Divider(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
-
                   Flexible(
                     child: ListView.builder(
                       shrinkWrap: true,
-                      itemCount: _savedWorkouts.length,
-                      itemBuilder: (context, index) {
-                        final workout = _savedWorkouts[index];
-                        final isSelected = _schedule[day] == workout['id'];
+                      itemCount: _savedRoutines.length,
+                      itemBuilder: (BuildContext itemContext, int index) {
+                        final workout = _savedRoutines[index];
+                        final isSelected = _schedule[day] == workout.id;
                         final themeColor = Color(_selectedColorValue);
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: Pressable(
                             onTap: () {
-                              setState(() => _schedule[day] = workout['id']);
-                              Navigator.pop(context);
+                              setState(() => _schedule[day] = workout.id);
+                              Navigator.pop(sheetContext);
                             },
                             child: Glass(
                               radius: 16,
                               padding: const EdgeInsets.all(16),
                               child: Row(
-                                children: [
+                                children: <Widget>[
                                   Container(
                                     padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
-                                      color: themeColor.withOpacity(0.15),
+                                      color: themeColor.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
-                                    child: Icon(Icons.fitness_center, color: themeColor, size: 20),
+                                    child: Icon(
+                                      Icons.fitness_center,
+                                      color: themeColor,
+                                      size: 20,
+                                    ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
-                                      workout['name'],
-                                      style: PUI.text(size: 16, weight: FontWeight.w700),
+                                      workout.name,
+                                      style: PUI.text(
+                                        size: 16,
+                                        weight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
-                                  if (isSelected) Icon(Icons.check_circle, color: themeColor),
+                                  if (isSelected)
+                                    Icon(Icons.check_circle, color: themeColor),
                                 ],
                               ),
                             ),
@@ -156,38 +223,67 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
                       },
                     ),
                   ),
-                  SizedBox(height: MediaQuery.of(context).padding.bottom + 10),
+                  SizedBox(height: MediaQuery.of(sheetContext).padding.bottom + 10),
                 ],
               ),
             ),
           ),
         );
       },
+      ),
     );
   }
 
-  void _saveSplit() {
-    if (_nameController.text.trim().isEmpty) {
+  Future<void> _saveSplit() async {
+    if (_isSaving) return;
+
+    final trimmedName = _nameController.text.trim();
+    if (trimmedName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please name your split!", style: PUI.text())),
+        SnackBar(content: Text('Please name your split!', style: PUI.text())),
       );
       return;
     }
 
-    final program = {
-      "id": DateTime.now().millisecondsSinceEpoch.toString(),
-      "name": _nameController.text.trim(),
-      "durationWeeks": _durationWeeks,
-      "startDate": DateTime.now().toIso8601String(),
-      "schedule": _schedule,
-      "colorValue": _selectedColorValue,
-    };
+    final hasWorkoutDay = _schedule.values.any(
+      (String? id) => id != null && id.isNotEmpty,
+    );
+    if (!hasWorkoutDay) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Assign at least one workout day before saving your split!',
+            style: PUI.text(),
+          ),
+        ),
+      );
+      return;
+    }
 
-    ProgramStorage.saveProgram(program);
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
+    setState(() => _isSaving = true);
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    final program = SplitProgram(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      name: trimmedName,
+      durationWeeks: _durationWeeks,
+      startDate: formatDateKey(DateTime.now()),
+      schedule: Map<String, String?>.from(_schedule),
+      colorValue: _selectedColorValue,
+    );
+
+    await ProgramStorage.saveProgramModel(program, makeActive: true);
+    if (!mounted) return;
+
+    setState(() => _isSaving = false);
+    navigator.pop();
+    messenger.showSnackBar(
       SnackBar(
-        content: Text("${program['name']} created successfully! 🎉", style: PUI.text(weight: FontWeight.w700)),
+        content: Text(
+          '${program.name} created and activated! 🎉',
+          style: PUI.text(weight: FontWeight.w700),
+        ),
         backgroundColor: Color(_selectedColorValue),
       ),
     );
@@ -196,11 +292,10 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
   String? _getWorkoutNameForDay(String day) {
     final workoutId = _schedule[day];
     if (workoutId == null) return null;
-    final workout = _savedWorkouts.firstWhere(
-      (w) => w['id'] == workoutId,
-      orElse: () => {},
-    );
-    return workout['name'] as String?;
+    for (final routine in _savedRoutines) {
+      if (routine.id == workoutId) return routine.name;
+    }
+    return null;
   }
 
   @override
@@ -208,19 +303,25 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
     final selectedColor = Color(_selectedColorValue);
 
     return PremiumScaffold(
-      title: "Create Split",
+      title: 'Create Split',
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: PUI.primary))
           : Column(
-              children: [
+              children: <Widget>[
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // ── NAME INPUT ────────────────────────
-                        Text("Split Name", style: PUI.text(size: 14, weight: FontWeight.w700, color: Colors.white.withOpacity(0.6))),
+                      children: <Widget>[
+                        Text(
+                          'Split Name',
+                          style: PUI.text(
+                            size: 14,
+                            weight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.6),
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         Glass(
                           radius: 16,
@@ -230,28 +331,39 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
                             style: PUI.text(size: 16, weight: FontWeight.w600),
                             decoration: InputDecoration(
                               hintText: 'e.g., Month 1: PPL',
-                              hintStyle: PUI.text(color: Colors.white.withOpacity(0.3)),
+                              hintStyle: PUI.text(
+                                color: Colors.white.withValues(alpha: 0.3),
+                              ),
                               border: InputBorder.none,
                               contentPadding: const EdgeInsets.all(20),
                             ),
                           ),
                         ),
                         const SizedBox(height: 24),
-
-                        // ── COLOR PICKER ──────────────────────
-                        Text("Theme Color", style: PUI.text(size: 14, weight: FontWeight.w700, color: Colors.white.withOpacity(0.6))),
+                        Text(
+                          'Theme Color',
+                          style: PUI.text(
+                            size: 14,
+                            weight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.6),
+                          ),
+                        ),
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 44,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
                             itemCount: _presetColors.length,
-                            separatorBuilder: (_, __) => const SizedBox(width: 16),
-                            itemBuilder: (context, index) {
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: 16),
+                            itemBuilder: (BuildContext context, int index) {
                               final color = _presetColors[index];
-                              final isSelected = _selectedColorValue == color.value;
+                              final argb = color.toARGB32();
+                              final isSelected = _selectedColorValue == argb;
                               return GestureDetector(
-                                onTap: () => setState(() => _selectedColorValue = color.value),
+                                onTap: () => setState(
+                                  () => _selectedColorValue = argb,
+                                ),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   width: isSelected ? 44 : 36,
@@ -259,8 +371,22 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
                                   decoration: BoxDecoration(
                                     color: color,
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: isSelected ? Colors.white : Colors.transparent, width: 3),
-                                    boxShadow: isSelected ? [BoxShadow(color: color.withOpacity(0.6), blurRadius: 12)] : [],
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? Colors.white
+                                          : Colors.transparent,
+                                      width: 3,
+                                    ),
+                                    boxShadow: isSelected
+                                        ? <BoxShadow>[
+                                            BoxShadow(
+                                              color: color.withValues(
+                                                alpha: 0.6,
+                                              ),
+                                              blurRadius: 12,
+                                            ),
+                                          ]
+                                        : const <BoxShadow>[],
                                   ),
                                 ),
                               );
@@ -268,30 +394,69 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
                           ),
                         ),
                         const SizedBox(height: 32),
-
-                        // ── DURATION ──────────────────────────
-                        Text("Duration", style: PUI.text(size: 14, weight: FontWeight.w700, color: Colors.white.withOpacity(0.6))),
+                        Text(
+                          'Duration',
+                          style: PUI.text(
+                            size: 14,
+                            weight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.6),
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         Glass(
                           radius: 20,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text("Weeks", style: PUI.text(size: 16, weight: FontWeight.w700)),
+                            children: <Widget>[
+                              Text(
+                                'Weeks',
+                                style: PUI.text(
+                                  size: 16,
+                                  weight: FontWeight.w700,
+                                ),
+                              ),
                               Row(
-                                children: [
+                                children: <Widget>[
                                   Pressable(
-                                    onTap: _durationWeeks > 1 ? () => setState(() => _durationWeeks--) : null,
-                                    child: Icon(Icons.remove_circle_outline, color: _durationWeeks > 1 ? selectedColor : Colors.white24, size: 28),
+                                    onTap: _durationWeeks > 1
+                                        ? () =>
+                                              setState(() => _durationWeeks--)
+                                        : null,
+                                    child: Icon(
+                                      Icons.remove_circle_outline,
+                                      color: _durationWeeks > 1
+                                          ? selectedColor
+                                          : Colors.white24,
+                                      size: 28,
+                                    ),
                                   ),
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                                    child: GradientText("$_durationWeeks", size: 28, colors: [Colors.white, selectedColor]),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                    ),
+                                    child: GradientText(
+                                      '$_durationWeeks',
+                                      size: 28,
+                                      colors: <Color>[
+                                        Colors.white,
+                                        selectedColor,
+                                      ],
+                                    ),
                                   ),
                                   Pressable(
-                                    onTap: () => setState(() => _durationWeeks++),
-                                    child: Icon(Icons.add_circle_outline, color: selectedColor, size: 28),
+                                    onTap: _durationWeeks < 52
+                                        ? () =>
+                                              setState(() => _durationWeeks++)
+                                        : null,
+                                    child: Icon(
+                                      Icons.add_circle_outline,
+                                      color: selectedColor,
+                                      size: 28,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -299,11 +464,9 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
                           ),
                         ),
                         const SizedBox(height: 32),
-
-                        // ── SCHEDULE ──────────────────────────
-                        const SectionTitle("Weekly Schedule"),
+                        const SectionTitle('Weekly Schedule'),
                         const SizedBox(height: 16),
-                        ..._schedule.keys.map((day) {
+                        ..._schedule.keys.map((String day) {
                           final workoutName = _getWorkoutNameForDay(day);
                           final isRest = workoutName == null;
 
@@ -315,33 +478,61 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
                                 radius: 16,
                                 padding: const EdgeInsets.all(16),
                                 child: Row(
-                                  children: [
+                                  children: <Widget>[
                                     Container(
                                       padding: const EdgeInsets.all(10),
                                       decoration: BoxDecoration(
-                                        color: isRest ? Colors.white.withOpacity(0.05) : selectedColor.withOpacity(0.15),
+                                        color: isRest
+                                            ? Colors.white.withValues(
+                                                alpha: 0.05,
+                                              )
+                                            : selectedColor.withValues(
+                                                alpha: 0.15,
+                                              ),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Icon(
-                                        isRest ? Icons.bedtime : Icons.fitness_center,
-                                        color: isRest ? Colors.white54 : selectedColor,
+                                        isRest
+                                            ? Icons.bedtime
+                                            : Icons.fitness_center,
+                                        color: isRest
+                                            ? Colors.white54
+                                            : selectedColor,
                                         size: 20,
                                       ),
                                     ),
                                     const SizedBox(width: 16),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(day, style: PUI.text(size: 16, weight: FontWeight.w700)),
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: <Widget>[
                                           Text(
-                                            isRest ? "Rest Day" : workoutName!,
-                                            style: PUI.text(size: 12, color: isRest ? Colors.white54 : selectedColor, weight: FontWeight.w600),
+                                            day,
+                                            style: PUI.text(
+                                              size: 16,
+                                              weight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          Text(
+                                            isRest ? 'Rest Day' : workoutName,
+                                            style: PUI.text(
+                                              size: 12,
+                                              color: isRest
+                                                  ? Colors.white54
+                                                  : selectedColor,
+                                              weight: FontWeight.w600,
+                                            ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                    Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.3)),
+                                    Icon(
+                                      Icons.chevron_right,
+                                      color: Colors.white.withValues(
+                                        alpha: 0.3,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -353,18 +544,17 @@ class _SplitBuilderScreenState extends State<SplitBuilderScreen> {
                     ),
                   ),
                 ),
-
-                // ── SAVE BUTTON ───────────────────────────────
                 Padding(
                   padding: const EdgeInsets.all(24.0),
                   child: PrimaryButton(
-                    label: "Save Split Program",
+                    label: _isSaving ? 'Saving...' : 'Save Split Program',
                     icon: Icons.save_rounded,
-                    onTap: _saveSplit,
+                    muted: _isSaving,
+                    onTap: _isSaving ? null : _saveSplit,
                   ),
                 ),
               ],
             ),
     );
   }
-} 
+}

@@ -1,29 +1,31 @@
 import 'package:flutter/foundation.dart';
 
-/// A simple, dependency-free event bus for broadcasting workout-related
-/// changes across the app. Screens that care about workout data (like
-/// the HomeScreen) subscribe to the revision counter, and storage
-/// classes bump the counter whenever they mutate data.
+/// Dependency-free event bus for broadcasting data mutations across screens.
+///
+/// Screens inside `MainNavigationScreen`'s `IndexedStack` remain mounted for
+/// the lifetime of the app, so they subscribe to [revision] to stay in sync
+/// whenever workouts, routines, split programs, or settings change.
 class WorkoutEventBus {
   WorkoutEventBus._();
   static final WorkoutEventBus instance = WorkoutEventBus._();
 
   final ValueNotifier<int> _revision = ValueNotifier<int>(0);
 
-  /// Listen to this to get notified when any workout data changes.
+  /// Emits an incremented revision number whenever persisted app state changes.
   ValueNotifier<int> get revision => _revision;
 
-  /// Call whenever a workout is saved, deleted, or cleared.
   void notifyWorkoutChanged() {
     _revision.value++;
   }
 
-  /// Call when custom workouts are modified.
   void notifyCustomWorkoutsChanged() {
     _revision.value++;
   }
 
-  /// Call when settings that affect the home screen change.
+  void notifyProgramsChanged() {
+    _revision.value++;
+  }
+
   void notifySettingsChanged() {
     _revision.value++;
   }
