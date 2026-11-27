@@ -99,21 +99,26 @@ class WorkoutApp extends StatefulWidget {
 }
 
 class _WorkoutAppState extends State<WorkoutApp> {
-  late Future<void> _initFuture;
+  late Future<Object?> _initFuture;
 
-  Future<void> _runInit() => (widget.initOverride ?? _initServices)();
+  Future<Object?> _runInit() async {
+    try {
+      await (widget.initOverride ?? _initServices)();
+      return null;
+    } catch (e, st) {
+      debugPrint('Startup failed: $e\n$st');
+      return e;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    // Attach `.ignore()` so an early failure before MaterialApp mounts the
-    // FutureBuilder route is not reported as an uncaught zone error; the
-    // FutureBuilder still receives snapshot.error normally.
-    _initFuture = _runInit()..ignore();
+    _initFuture = _runInit();
   }
 
   void _retry() {
-    setState(() => _initFuture = _runInit()..ignore());
+    setState(() => _initFuture = _runInit());
   }
 
   @override
@@ -122,17 +127,18 @@ class _WorkoutAppState extends State<WorkoutApp> {
       debugShowCheckedModeBanner: false,
       title: 'Soma',
       theme: _buildTheme(),
-      home: FutureBuilder<void>(
+      home: FutureBuilder<Object?>(
         future: _initFuture,
-        builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
-          if (snapshot.hasError) {
-            return _StartupErrorScreen(
-              error: snapshot.error!,
-              onRetry: _retry,
-            );
-          }
+        builder: (BuildContext context, AsyncSnapshot<Object?> snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const _StartupLoadingScreen();
+          }
+          final startupError = snapshot.data ?? snapshot.error;
+          if (startupError != null) {
+            return _StartupErrorScreen(
+              error: startupError,
+              onRetry: _retry,
+            );
           }
           return const MainNavigationScreen();
         },

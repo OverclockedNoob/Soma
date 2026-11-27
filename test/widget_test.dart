@@ -66,10 +66,6 @@ void main() {
   testWidgets('WorkoutApp shows loading spinner, startup error screen, and recovers on retry', (
     WidgetTester tester,
   ) async {
-    final previousRethrow = FutureBuilder.debugRethrowError;
-    FutureBuilder.debugRethrowError = false;
-    addTearDown(() => FutureBuilder.debugRethrowError = previousRethrow);
-
     final firstAttempt = Completer<void>();
     int attempts = 0;
 
